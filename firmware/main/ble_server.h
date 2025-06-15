@@ -2,13 +2,14 @@
 #define BLE_SERVER_H
 
 #include "esp_gatts_api.h"
+#include "esp_gap_ble_api.h"
 
 // Service and Characteristic UUIDs
 #define GATTS_SERVICE_UUID_RGBW         0x00FF
-#define GATTS_CHAR_UUID_RED            0xFF01
-#define GATTS_CHAR_UUID_GREEN          0xFF02
-#define GATTS_CHAR_UUID_BLUE           0xFF03
-#define GATTS_CHAR_UUID_WARM_WHITE     0xFF04
+#define GATTS_CHAR_UUID_RED_VAL         0xFF01
+#define GATTS_CHAR_UUID_GREEN_VAL       0xFF02
+#define GATTS_CHAR_UUID_BLUE_VAL        0xFF03
+#define GATTS_CHAR_UUID_WARM_WHITE_VAL  0xFF04
 
 // BLE Server functions
 void ble_server_init(void);

@@ -6,14 +6,11 @@
 #include "esp_bt_main.h"
 #include "esp_gap_ble_api.h"
 #include "esp_gatts_api.h"
-#include "esp_http_server.h"
 #include "esp_log.h"
-#include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
 #include "pwm_control.h"
-#include "wifi_manager.h"
 
 static const char *TAG = "RGBW_MAIN";
 
@@ -28,9 +25,6 @@ void app_main(void) {
 
     // Initialize PWM for LED control
     pwm_init();
-
-    // Initialize WiFi for QR code web server
-    wifi_init_softap();
 
     // Initialize Bluetooth
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
@@ -64,6 +58,6 @@ void app_main(void) {
     ble_server_init();
 
     ESP_LOGI(TAG, "RGBW LED Controller started");
-    ESP_LOGI(TAG, "Connect to WiFi: RGBW_Setup");
-    ESP_LOGI(TAG, "Visit: http://192.168.4.1 for QR code");
+    ESP_LOGI(TAG, "BLE advertising as: RGBW_LED_001");
+    ESP_LOGI(TAG, "Ready for connections!");
 }

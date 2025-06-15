@@ -1,3 +1,3 @@
-idf_component_register(SRCS "main.c" "ble_server.c" "pwm_control.c" "wifi_manager.c"
+idf_component_register(SRCS "main.c" "ble_server.c" "pwm_control.c"
                     INCLUDE_DIRS "."
-                    REQUIRES nvs_flash esp_wifi esp_http_server bt)
+                    REQUIRES nvs_flash bt driver)
