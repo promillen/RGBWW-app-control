@@ -1,0 +1,22 @@
+# ESP32 build files
+firmware/build/
+firmware/sdkconfig.old
+firmware/.vscode/
+
+# Flutter build files
+app/build/
+app/.dart_tool/
+app/.packages
+app/.metadata
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
