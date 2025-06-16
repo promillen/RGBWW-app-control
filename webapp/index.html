@@ -3,94 +3,208 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Festival LED Controller</title>
+    <title>Alive Light Control</title>
     <link rel="manifest" href="manifest.json">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@300;400;700&display=swap');
+        
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
+        :root {
+            --primary-green: #00ff41;
+            --secondary-green: #008f11;
+            --dark-bg: #0d1117;
+            --darker-bg: #010409;
+            --accent-cyan: #00d4aa;
+            --text-dim: #7d8590;
+            --border-color: #21262d;
+            --glow-color: #00ff4150;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Roboto Mono', monospace;
+            background: var(--darker-bg);
+            color: var(--primary-green);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
             padding: 20px;
-            color: white;
+            background-image: 
+                radial-gradient(circle at 25% 25%, var(--glow-color) 0%, transparent 50%),
+                radial-gradient(circle at 75% 75%, var(--glow-color) 0%, transparent 50%);
+            animation: backgroundPulse 8s ease-in-out infinite alternate;
         }
 
-        .container {
-            max-width: 400px;
+        @keyframes backgroundPulse {
+            0% { filter: brightness(1); }
+            100% { filter: brightness(1.1); }
+        }
+
+        .terminal-container {
+            max-width: 500px;
             width: 100%;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 30px;
-            text-align: center;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            background: var(--dark-bg);
+            border: 2px solid var(--secondary-green);
+            border-radius: 8px;
+            padding: 0;
+            box-shadow: 
+                0 0 20px var(--glow-color),
+                inset 0 0 20px rgba(0, 255, 65, 0.1);
+            position: relative;
+            overflow: hidden;
         }
 
-        h1 {
-            margin-bottom: 30px;
-            font-size: 28px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        .terminal-header {
+            background: var(--secondary-green);
+            color: var(--darker-bg);
+            padding: 12px 20px;
+            font-family: 'Orbitron', monospace;
+            font-weight: 700;
+            text-align: center;
+            position: relative;
+        }
+
+        .terminal-header::before {
+            content: '████ ';
+            color: var(--darker-bg);
+        }
+
+        .terminal-header::after {
+            content: ' ████';
+            color: var(--darker-bg);
+        }
+
+        .ascii-art {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 10px;
+            line-height: 1;
+            color: var(--accent-cyan);
+            text-align: center;
+            padding: 15px;
+            white-space: pre;
+            user-select: none;
+        }
+
+        .terminal-body {
+            padding: 30px;
+        }
+
+        .device-info {
+            background: var(--border-color);
+            border: 1px solid var(--secondary-green);
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            color: var(--accent-cyan);
+        }
+
+        .device-info::before {
+            content: '> ';
+            color: var(--primary-green);
         }
 
         .status {
             padding: 15px;
-            border-radius: 10px;
+            border-radius: 4px;
             margin-bottom: 20px;
-            font-weight: bold;
-            transition: all 0.3s ease;
+            font-weight: 700;
+            text-align: center;
+            border: 1px solid;
+            font-family: 'Orbitron', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .status.disconnected {
-            background: rgba(255, 107, 107, 0.3);
-            border: 2px solid #ff6b6b;
+            background: rgba(255, 0, 0, 0.1);
+            border-color: #ff0040;
+            color: #ff0040;
         }
 
         .status.connecting {
-            background: rgba(255, 193, 7, 0.3);
-            border: 2px solid #ffc107;
+            background: rgba(255, 165, 0, 0.1);
+            border-color: #ffa500;
+            color: #ffa500;
+            animation: pulse 1s infinite;
         }
 
         .status.connected {
-            background: rgba(81, 207, 102, 0.3);
-            border: 2px solid #51cf66;
+            background: rgba(0, 255, 65, 0.1);
+            border-color: var(--primary-green);
+            color: var(--primary-green);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
 
         .connect-btn {
-            background: linear-gradient(45deg, #ff6b6b, #ffa726);
-            border: none;
-            color: white;
+            background: transparent;
+            border: 2px solid var(--primary-green);
+            color: var(--primary-green);
             padding: 15px 30px;
-            font-size: 18px;
-            border-radius: 50px;
+            font-size: 14px;
+            font-family: 'Orbitron', monospace;
+            font-weight: 700;
+            border-radius: 4px;
             cursor: pointer;
             margin-bottom: 30px;
-            transition: all 0.2s;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .connect-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, var(--glow-color), transparent);
+            transition: left 0.5s;
+        }
+
+        .connect-btn:hover::before {
+            left: 100%;
         }
 
         .connect-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            background: var(--primary-green);
+            color: var(--darker-bg);
+            box-shadow: 0 0 20px var(--glow-color);
         }
 
         .connect-btn:disabled {
-            opacity: 0.6;
+            opacity: 0.5;
             cursor: not-allowed;
-            transform: none;
+        }
+
+        .auto-connect-btn {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+            margin-bottom: 10px;
+        }
+
+        .auto-connect-btn:hover:not(:disabled) {
+            background: var(--accent-cyan);
+            color: var(--darker-bg);
         }
 
         .controls {
             opacity: 0;
             transform: translateY(20px);
-            transition: all 0.3s ease;
+            transition: all 0.5s ease;
             pointer-events: none;
         }
 
@@ -102,185 +216,332 @@
 
         .control-group {
             margin-bottom: 25px;
-            text-align: left;
         }
 
         .control-group label {
             display: block;
             margin-bottom: 10px;
-            font-weight: bold;
-            font-size: 16px;
+            font-weight: 700;
+            font-size: 12px;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-family: 'Orbitron', monospace;
         }
 
-        .color-picker {
-            width: 100%;
-            height: 60px;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        .slider-container {
+            position: relative;
+            background: var(--border-color);
+            border-radius: 4px;
+            padding: 15px;
+            border: 1px solid var(--secondary-green);
         }
 
         .slider {
             width: 100%;
-            height: 8px;
-            border-radius: 4px;
-            background: rgba(255, 255, 255, 0.3);
+            height: 6px;
+            border-radius: 3px;
+            background: var(--darker-bg);
             outline: none;
             cursor: pointer;
             appearance: none;
+            position: relative;
         }
 
         .slider::-webkit-slider-thumb {
             appearance: none;
-            width: 24px;
-            height: 24px;
+            width: 20px;
+            height: 20px;
             border-radius: 50%;
-            background: white;
+            background: var(--primary-green);
             cursor: pointer;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            box-shadow: 0 0 10px var(--glow-color);
+            border: 2px solid var(--darker-bg);
             transition: all 0.2s;
         }
 
         .slider::-webkit-slider-thumb:hover {
-            transform: scale(1.1);
+            transform: scale(1.2);
+            box-shadow: 0 0 15px var(--primary-green);
+        }
+
+        .slider.red::-webkit-slider-thumb {
+            background: #ff0040;
+            box-shadow: 0 0 10px #ff004050;
+        }
+
+        .slider.green::-webkit-slider-thumb {
+            background: var(--primary-green);
+            box-shadow: 0 0 10px var(--glow-color);
+        }
+
+        .slider.blue::-webkit-slider-thumb {
+            background: #0080ff;
+            box-shadow: 0 0 10px #0080ff50;
+        }
+
+        .slider.white::-webkit-slider-thumb {
+            background: #ffffff;
+            box-shadow: 0 0 10px #ffffff50;
+        }
+
+        .value-display {
+            position: absolute;
+            top: -5px;
+            right: 10px;
+            background: var(--darker-bg);
+            color: var(--primary-green);
+            padding: 2px 8px;
+            border-radius: 2px;
+            font-size: 10px;
+            font-weight: 700;
+            min-width: 30px;
+            text-align: center;
+        }
+
+        .color-preview {
+            width: 100%;
+            height: 60px;
+            border-radius: 4px;
+            margin-top: 20px;
+            border: 2px solid var(--secondary-green);
+            background: #000;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .color-preview::before {
+            content: 'RGBW PREVIEW';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-dim);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        .section-divider {
+            height: 1px;
+            background: var(--secondary-green);
+            margin: 30px 0;
+            position: relative;
+        }
+
+        .section-divider::before {
+            content: '▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄';
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--dark-bg);
+            color: var(--secondary-green);
+            font-size: 8px;
+            padding: 0 10px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            text-align: center;
+            color: var(--accent-cyan);
+            font-family: 'Orbitron', monospace;
+            text-transform: uppercase;
+            letter-spacing: 2px;
         }
 
         .effect-buttons {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 10px;
-            margin-top: 30px;
         }
 
         .effect-btn {
             padding: 12px 8px;
-            border: none;
-            border-radius: 10px;
-            color: white;
-            font-weight: bold;
+            border: 1px solid var(--secondary-green);
+            border-radius: 4px;
+            background: transparent;
+            color: var(--primary-green);
+            font-weight: 700;
             cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-            font-size: 12px;
+            transition: all 0.3s;
+            font-size: 10px;
             text-align: center;
+            font-family: 'Roboto Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
-        .effect-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        .effect-btn:hover:not(:disabled) {
+            background: var(--secondary-green);
+            color: var(--darker-bg);
+            box-shadow: 0 0 10px var(--glow-color);
         }
 
         .effect-btn:disabled {
-            opacity: 0.5;
+            opacity: 0.3;
             cursor: not-allowed;
-            transform: none;
         }
 
-        .device-info {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
-            font-size: 14px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .error-message {
-            background: rgba(255, 107, 107, 0.2);
-            border: 1px solid #ff6b6b;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-
-        .rgb-preview {
-            width: 100%;
-            height: 40px;
-            border-radius: 10px;
-            margin-top: 10px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            transition: all 0.3s ease;
-        }
-
-        .section-divider {
-            height: 1px;
-            background: rgba(255, 255, 255, 0.2);
-            margin: 25px 0;
-        }
-
-        .section-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 15px;
+        .footer {
+            margin-top: 30px;
             text-align: center;
-            color: rgba(255, 255, 255, 0.9);
+            color: var(--text-dim);
+            font-size: 11px;
+            padding: 20px;
+        }
+
+        .footer a {
+            color: var(--accent-cyan);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: color 0.3s;
+        }
+
+        .footer a:hover {
+            color: var(--primary-green);
+        }
+
+        .github-icon {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
         }
 
         @media (max-width: 480px) {
-            .container {
+            .terminal-container {
                 margin: 10px;
+            }
+            
+            .terminal-body {
                 padding: 20px;
             }
             
             .effect-buttons {
                 grid-template-columns: repeat(2, 1fr);
             }
+            
+            .ascii-art {
+                font-size: 8px;
+            }
+        }
+
+        .scan-animation {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--primary-green), transparent);
+            animation: scan 2s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎨 Festival LED Controller</h1>
+    <div class="terminal-container">
+        <div class="terminal-header">
+            ALIVE LIGHT CONTROL
+        </div>
         
-        <div id="deviceInfo" class="device-info" style="display: none;">
-            <strong>Device:</strong> <span id="deviceName">-</span>
-        </div>
+        <div class="ascii-art">╔══════════════════════════════════════╗
+║                                      ║
+║   ██▄  ██     ███ ██   ██ ███████   ║
+║  ██ ██ ██      ██ ██   ██ ██        ║
+║  █████ ██      ██ ██   ██ ██████    ║
+║  ██ ██ ██      ██  ██ ██  ██        ║
+║  ██ ██ ██████ ███   ███   ███████   ║
+║                                      ║
+╚══════════════════════════════════════╝</div>
 
-        <div id="errorMessage" class="error-message" style="display: none;"></div>
-
-        <div id="status" class="status disconnected">
-            Ready to Connect
-        </div>
-
-        <button id="connectBtn" class="connect-btn">
-            🔗 Connect to LED
-        </button>
-
-        <div id="controls" class="controls">
-            <div class="control-group">
-                <label for="colorPicker">🎨 Color</label>
-                <input type="color" id="colorPicker" class="color-picker" value="#ff0000">
-                <div id="rgbPreview" class="rgb-preview"></div>
+        <div class="terminal-body">
+            <div id="deviceInfo" class="device-info" style="display: none;">
+                TARGET DEVICE: <span id="deviceName">-</span>
             </div>
 
-            <div class="control-group">
-                <label for="brightness">💡 Brightness: <span id="brightnessValue">100</span>%</label>
-                <input type="range" id="brightness" class="slider" min="0" max="100" value="100">
+            <div id="status" class="status disconnected">
+                <div class="scan-animation" style="display: none;"></div>
+                SYSTEM OFFLINE
             </div>
 
-            <div class="control-group">
-                <label for="warmWhite">🔆 Warm White: <span id="warmWhiteValue">0</span>%</label>
-                <input type="range" id="warmWhite" class="slider" min="0" max="100" value="0">
-            </div>
+            <button id="autoConnectBtn" class="connect-btn auto-connect-btn" style="display: none;">
+                CONNECT TO <span id="targetDeviceName">DEVICE</span>
+            </button>
 
-            <div class="section-divider"></div>
-            
-            <div class="section-title">🎭 Light Effects</div>
-            <div class="effect-buttons">
-                <button class="effect-btn" style="background: #333;" onclick="effectOff()">⚫ Off</button>
-                <button class="effect-btn" style="background: #ff6b6b;" onclick="effectSolid()">🔴 Solid</button>
-                <button class="effect-btn" style="background: linear-gradient(45deg, #ff6b6b, #51cf66);" onclick="effectFade()" disabled>🌈 Fade</button>
-                <button class="effect-btn" style="background: linear-gradient(45deg, #339af0, #ffa726);" onclick="effectStrobe()" disabled>⚡ Strobe</button>
-                <button class="effect-btn" style="background: linear-gradient(45deg, #51cf66, #ff6b6b, #339af0);" onclick="effectRainbow()" disabled>🌈 Rainbow</button>
-                <button class="effect-btn" style="background: linear-gradient(45deg, #ffa726, #ff6b6b);" onclick="effectPulse()" disabled>💓 Pulse</button>
+            <button id="connectBtn" class="connect-btn">
+                SCAN FOR DEVICES
+            </button>
+
+            <div id="controls" class="controls">
+                <div class="control-group">
+                    <label for="redSlider">🔴 RED CHANNEL</label>
+                    <div class="slider-container">
+                        <input type="range" id="redSlider" class="slider red" min="0" max="255" value="255">
+                        <div class="value-display" id="redValue">255</div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label for="greenSlider">🟢 GREEN CHANNEL</label>
+                    <div class="slider-container">
+                        <input type="range" id="greenSlider" class="slider green" min="0" max="255" value="0">
+                        <div class="value-display" id="greenValue">0</div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label for="blueSlider">🔵 BLUE CHANNEL</label>
+                    <div class="slider-container">
+                        <input type="range" id="blueSlider" class="slider blue" min="0" max="255" value="0">
+                        <div class="value-display" id="blueValue">0</div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label for="whiteSlider">⚪ WHITE CHANNEL</label>
+                    <div class="slider-container">
+                        <input type="range" id="whiteSlider" class="slider white" min="0" max="255" value="0">
+                        <div class="value-display" id="whiteValue">0</div>
+                    </div>
+                </div>
+
+                <div class="color-preview" id="colorPreview"></div>
+
+                <div class="section-divider"></div>
+                
+                <div class="section-title">LIGHT EFFECTS</div>
+                <div class="effect-buttons">
+                    <button class="effect-btn" onclick="effectOff()">SYSTEM OFF</button>
+                    <button class="effect-btn" onclick="effectSolid()">SOLID MODE</button>
+                    <button class="effect-btn" onclick="effectFade()" disabled>FADE CYCLE</button>
+                    <button class="effect-btn" onclick="effectStrobe()" disabled>STROBE FX</button>
+                    <button class="effect-btn" onclick="effectRainbow()" disabled>RAINBOW</button>
+                    <button class="effect-btn" onclick="effectPulse()" disabled>PULSE WAVE</button>
+                </div>
             </div>
         </div>
     </div>
 
+    <div class="footer">
+        Created by Christoffer Kolbe Boye-Hansen<br>
+        <a href="https://github.com/promillen/RGBWW-app-control" target="_blank">
+            <svg class="github-icon" viewBox="0 0 24 24">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+            </svg>
+            View on GitHub
+        </a>
+    </div>
+
     <script>
-        class LEDController {
+        class AliveLightController {
             constructor() {
                 this.device = null;
                 this.server = null;
@@ -288,187 +549,229 @@
                 this.isConnected = false;
                 this.targetDeviceName = null;
                 this.updateThrottle = null;
+                this.autoConnect = false;
+                this.retryCount = 0;
+                this.maxRetries = 3;
                 
                 this.initializeUI();
                 this.parseURLParams();
                 this.checkBluetoothSupport();
             }
 
+            debug(message, data = null) {
+                console.log(`[ALIVE LIGHT] ${message}`, data || '');
+            }
+
+            error(message, error = null) {
+                console.error(`[ALIVE LIGHT ERROR] ${message}`, error || '');
+            }
+
             checkBluetoothSupport() {
                 if (!('bluetooth' in navigator)) {
-                    this.showError('Web Bluetooth is not supported on this device/browser. Please use Chrome on Android, Chrome OS, or a supported desktop browser.');
+                    this.updateStatus('BLUETOOTH NOT SUPPORTED', 'disconnected');
                     document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('autoConnectBtn').disabled = true;
                     return false;
                 }
+                this.debug('Bluetooth Web API available');
                 return true;
             }
 
             parseURLParams() {
                 const params = new URLSearchParams(window.location.search);
                 const deviceName = params.get('device');
+                const autoConnect = params.get('autoconnect');
                 
                 if (deviceName) {
                     this.targetDeviceName = deviceName;
                     document.getElementById('deviceName').textContent = deviceName;
+                    document.getElementById('targetDeviceName').textContent = deviceName;
                     document.getElementById('deviceInfo').style.display = 'block';
+                    
+                    document.getElementById('autoConnectBtn').style.display = 'block';
+                    
+                    if (autoConnect === 'true') {
+                        this.autoConnect = true;
+                        this.debug('Auto-connect enabled');
+                        setTimeout(() => {
+                            this.connectToSpecificDevice();
+                        }, 1000);
+                    }
                 }
             }
 
             initializeUI() {
                 const connectBtn = document.getElementById('connectBtn');
-                const colorPicker = document.getElementById('colorPicker');
-                const brightness = document.getElementById('brightness');
-                const warmWhite = document.getElementById('warmWhite');
-
-                connectBtn.addEventListener('click', () => this.toggleConnection());
+                const autoConnectBtn = document.getElementById('autoConnectBtn');
                 
-                colorPicker.addEventListener('change', () => this.updateLED());
-                colorPicker.addEventListener('input', () => this.updatePreview());
+                connectBtn.addEventListener('click', () => this.connectWithChoice());
+                autoConnectBtn.addEventListener('click', () => this.connectToSpecificDevice());
                 
-                brightness.addEventListener('input', (e) => {
-                    document.getElementById('brightnessValue').textContent = e.target.value;
-                    this.throttledUpdate();
-                    this.updatePreview();
-                });
-                
-                warmWhite.addEventListener('input', (e) => {
-                    document.getElementById('warmWhiteValue').textContent = e.target.value;
-                    this.throttledUpdate();
+                // Setup sliders
+                ['red', 'green', 'blue', 'white'].forEach(color => {
+                    const slider = document.getElementById(`${color}Slider`);
+                    const valueDisplay = document.getElementById(`${color}Value`);
+                    
+                    slider.addEventListener('input', (e) => {
+                        valueDisplay.textContent = e.target.value;
+                        this.throttledUpdate();
+                        this.updateColorPreview();
+                    });
                 });
 
-                // Initial preview update
-                this.updatePreview();
+                this.updateColorPreview();
             }
 
-            // Throttle updates to avoid spamming the ESP32
             throttledUpdate() {
                 if (this.updateThrottle) {
                     clearTimeout(this.updateThrottle);
                 }
                 this.updateThrottle = setTimeout(() => {
                     this.updateLED();
-                }, 100); // Wait 100ms before sending
+                }, 150); // Increased delay to reduce BLE congestion
             }
 
-            updatePreview() {
-                const color = this.hexToRgb(document.getElementById('colorPicker').value);
-                const brightness = parseInt(document.getElementById('brightness').value) / 100;
+            updateColorPreview() {
+                const r = parseInt(document.getElementById('redSlider').value);
+                const g = parseInt(document.getElementById('greenSlider').value);
+                const b = parseInt(document.getElementById('blueSlider').value);
                 
-                const r = Math.round(color.r * brightness);
-                const g = Math.round(color.g * brightness);
-                const b = Math.round(color.b * brightness);
-                
-                document.getElementById('rgbPreview').style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+                document.getElementById('colorPreview').style.background = `rgb(${r}, ${g}, ${b})`;
             }
 
-            showError(message) {
-                const errorDiv = document.getElementById('errorMessage');
-                errorDiv.textContent = message;
-                errorDiv.style.display = 'block';
-                setTimeout(() => {
-                    errorDiv.style.display = 'none';
-                }, 3000);
-            }
+            async connectToSpecificDevice() {
+                if (!this.targetDeviceName) {
+                    this.error('No target device specified');
+                    return;
+                }
 
-            async toggleConnection() {
-                if (this.isConnected) {
-                    await this.disconnect();
-                } else {
-                    await this.connect();
+                try {
+                    this.updateStatus(`SCANNING FOR ${this.targetDeviceName}`, 'connecting');
+                    this.showScanAnimation(true);
+                    document.getElementById('autoConnectBtn').disabled = true;
+                    document.getElementById('connectBtn').disabled = true;
+
+                    this.debug(`Attempting connection to: ${this.targetDeviceName}`);
+
+                    this.device = await navigator.bluetooth.requestDevice({
+                        filters: [{ name: this.targetDeviceName }],
+                        optionalServices: ['000000ff-0000-1000-8000-00805f9b34fb']
+                    });
+
+                    await this.completeConnection();
+
+                } catch (error) {
+                    this.error('Auto-connect failed', error);
+                    
+                    if (error.name === 'NotFoundError') {
+                        this.updateStatus(`${this.targetDeviceName} NOT FOUND`, 'disconnected');
+                    } else if (error.name === 'NotAllowedError') {
+                        this.updateStatus('CONNECTION CANCELLED', 'disconnected');
+                    } else {
+                        this.updateStatus('CONNECTION FAILED', 'disconnected');
+                    }
+                } finally {
+                    this.showScanAnimation(false);
+                    document.getElementById('autoConnectBtn').disabled = false;
+                    document.getElementById('connectBtn').disabled = false;
                 }
             }
 
-            async connect() {
+            async connectWithChoice() {
                 try {
-                    this.updateStatus('Scanning for devices...', 'connecting');
+                    this.updateStatus('SCANNING DEVICES', 'connecting');
+                    this.showScanAnimation(true);
                     document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('autoConnectBtn').disabled = true;
 
-                    console.log('Starting connection process...');
+                    this.debug('Starting device scan with choice');
 
-                    // Create filters
                     const filters = [];
-                    
                     if (this.targetDeviceName) {
                         filters.push({ name: this.targetDeviceName });
-                        console.log(`Looking for specific device: ${this.targetDeviceName}`);
-                    } else {
-                        // If no specific device, look for any RGBW device
-                        filters.push({ namePrefix: 'RGBW_LED' });
                     }
+                    filters.push({ namePrefix: 'RGBW_LED' });
 
-                    console.log('Requesting device with filters:', filters);
-
-                    // Request device
                     this.device = await navigator.bluetooth.requestDevice({
                         filters: filters,
-                        optionalServices: [
-                            '000000ff-0000-1000-8000-00805f9b34fb'
-                        ]
+                        optionalServices: ['000000ff-0000-1000-8000-00805f9b34fb']
                     });
 
-                    console.log(`Selected device: ${this.device.name || 'Unnamed'}`);
-
-                    this.updateStatus('Connecting to device...', 'connecting');
-
-                    // Add disconnect handler
-                    this.device.addEventListener('gattserverdisconnected', () => {
-                        console.log('Device disconnected');
-                        this.isConnected = false;
-                        this.updateStatus('Device Disconnected', 'disconnected');
-                        document.getElementById('connectBtn').textContent = '🔗 Connect to LED';
-                        document.getElementById('controls').classList.remove('active');
-                    });
-
-                    // Connect to GATT server
-                    this.server = await this.device.gatt.connect();
-                    console.log('Connected to GATT server');
-                    
-                    this.updateStatus('Getting services...', 'connecting');
-                    
-                    // Get the service
-                    const service = await this.server.getPrimaryService('000000ff-0000-1000-8000-00805f9b34fb');
-                    console.log('Got LED service');
-                    
-                    // Get characteristics with better error handling
-                    try {
-                        this.characteristics.red = await service.getCharacteristic('0000ff01-0000-1000-8000-00805f9b34fb');
-                        this.characteristics.green = await service.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
-                        this.characteristics.blue = await service.getCharacteristic('0000ff03-0000-1000-8000-00805f9b34fb');
-                        this.characteristics.warmWhite = await service.getCharacteristic('0000ff04-0000-1000-8000-00805f9b34fb');
-                        console.log('Got all characteristics');
-                    } catch (charError) {
-                        console.error('Failed to get characteristics:', charError);
-                        throw new Error('Could not find all LED control characteristics');
-                    }
-
-                    this.isConnected = true;
-                    this.updateStatus(`Connected to ${this.device.name}!`, 'connected');
-                    document.getElementById('connectBtn').textContent = '🔌 Disconnect';
-                    document.getElementById('controls').classList.add('active');
-                    
-                    // Set initial values
-                    await this.updateLED();
+                    await this.completeConnection();
 
                 } catch (error) {
-                    console.error('Connection failed:', error);
-                    let errorMessage = 'Connection failed';
+                    this.error('Connection choice failed', error);
                     
                     if (error.name === 'NotFoundError') {
-                        errorMessage = 'No matching LED device found. Make sure it\'s powered on and nearby.';
-                    } else if (error.name === 'NotSupportedError') {
-                        errorMessage = 'Bluetooth not supported on this device';
+                        this.updateStatus('NO DEVICES FOUND', 'disconnected');
                     } else if (error.name === 'NotAllowedError') {
-                        errorMessage = 'Bluetooth access was denied';
-                    } else if (error.name === 'NetworkError') {
-                        errorMessage = 'Could not connect to device. Try moving closer.';
+                        this.updateStatus('SCAN CANCELLED', 'disconnected');
                     } else {
-                        errorMessage = `Connection failed: ${error.message}`;
+                        this.updateStatus('SCAN FAILED', 'disconnected');
                     }
-                    
-                    this.updateStatus('Connection Failed', 'disconnected');
-                    this.showError(errorMessage);
                 } finally {
+                    this.showScanAnimation(false);
                     document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('autoConnectBtn').disabled = false;
+                }
+            }
+
+            async completeConnection() {
+                this.debug(`Device selected: ${this.device.name}`);
+
+                this.updateStatus('ESTABLISHING LINK', 'connecting');
+
+                this.device.addEventListener('gattserverdisconnected', () => {
+                    this.debug('Device disconnected');
+                    this.isConnected = false;
+                    this.updateStatus('CONNECTION LOST', 'disconnected');
+                    this.updateConnectButtons();
+                    document.getElementById('controls').classList.remove('active');
+                });
+
+                this.server = await this.device.gatt.connect();
+                this.debug('GATT server connected');
+                
+                this.updateStatus('LOADING SERVICES', 'connecting');
+                
+                const service = await this.server.getPrimaryService('000000ff-0000-1000-8000-00805f9b34fb');
+                this.debug('Service acquired');
+                
+                // Get characteristics with proper error handling
+                this.characteristics.red = await service.getCharacteristic('0000ff01-0000-1000-8000-00805f9b34fb');
+                this.characteristics.green = await service.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
+                this.characteristics.blue = await service.getCharacteristic('0000ff03-0000-1000-8000-00805f9b34fb');
+                this.characteristics.warmWhite = await service.getCharacteristic('0000ff04-0000-1000-8000-00805f9b34fb');
+                
+                this.debug('All characteristics loaded');
+
+                this.isConnected = true;
+                this.retryCount = 0;
+                this.updateStatus(`CONNECTED TO ${this.device.name}`, 'connected');
+                this.updateConnectButtons();
+                document.getElementById('controls').classList.add('active');
+                
+                await this.updateLED();
+            }
+
+            showScanAnimation(show) {
+                const animation = document.querySelector('.scan-animation');
+                animation.style.display = show ? 'block' : 'none';
+            }
+
+            updateConnectButtons() {
+                if (this.isConnected) {
+                    document.getElementById('connectBtn').textContent = 'DISCONNECT';
+                    document.getElementById('autoConnectBtn').textContent = 'DISCONNECT';
+                    document.getElementById('connectBtn').onclick = () => this.disconnect();
+                    document.getElementById('autoConnectBtn').onclick = () => this.disconnect();
+                } else {
+                    document.getElementById('connectBtn').textContent = 'SCAN FOR DEVICES';
+                    if (this.targetDeviceName) {
+                        document.getElementById('autoConnectBtn').textContent = `CONNECT TO ${this.targetDeviceName}`;
+                    }
+                    document.getElementById('connectBtn').onclick = () => this.connectWithChoice();
+                    document.getElementById('autoConnectBtn').onclick = () => this.connectToSpecificDevice();
                 }
             }
 
@@ -478,9 +781,10 @@
                 }
                 
                 this.isConnected = false;
-                this.updateStatus('Disconnected', 'disconnected');
-                document.getElementById('connectBtn').textContent = '🔗 Connect to LED';
+                this.updateStatus('SYSTEM OFFLINE', 'disconnected');
+                this.updateConnectButtons();
                 document.getElementById('controls').classList.remove('active');
+                this.debug('Disconnected');
             }
 
             updateStatus(message, type) {
@@ -493,81 +797,89 @@
                 if (!this.isConnected) return;
 
                 try {
-                    const color = this.hexToRgb(document.getElementById('colorPicker').value);
-                    const brightness = parseInt(document.getElementById('brightness').value) / 100;
-                    const warmWhite = parseInt(document.getElementById('warmWhite').value) * 255 / 100;
+                    const r = parseInt(document.getElementById('redSlider').value);
+                    const g = parseInt(document.getElementById('greenSlider').value);
+                    const b = parseInt(document.getElementById('blueSlider').value);
+                    const w = parseInt(document.getElementById('whiteSlider').value);
 
-                    const r = Math.round(color.r * brightness);
-                    const g = Math.round(color.g * brightness);
-                    const b = Math.round(color.b * brightness);
-                    const w = Math.round(warmWhite * brightness);
+                    this.debug(`Updating RGBW: ${r}, ${g}, ${b}, ${w}`);
 
-                    console.log(`Setting RGBW: ${r}, ${g}, ${b}, ${w}`);
-
-                    // Write to characteristics with individual error handling
+                    // Write characteristics with individual error handling and delays
                     await this.characteristics.red.writeValue(new Uint8Array([r]));
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                    
                     await this.characteristics.green.writeValue(new Uint8Array([g]));
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                    
                     await this.characteristics.blue.writeValue(new Uint8Array([b]));
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                    
                     await this.characteristics.warmWhite.writeValue(new Uint8Array([w]));
 
                 } catch (error) {
-                    console.error('Failed to update LED:', error);
-                    this.showError('Failed to send data to LED');
+                    this.error('Failed to update LED', error);
+                    
+                    // Only retry if it's a network error and we haven't exceeded max retries
+                    if (error.name === 'NetworkError' && this.retryCount < this.maxRetries) {
+                        this.retryCount++;
+                        this.debug(`Retrying update (${this.retryCount}/${this.maxRetries})`);
+                        setTimeout(() => this.updateLED(), 200);
+                    } else {
+                        // Don't show user error for occasional BLE hiccups
+                        if (this.retryCount >= this.maxRetries) {
+                            this.debug('Max retries reached, giving up on this update');
+                        }
+                        this.retryCount = 0;
+                    }
                 }
-            }
-
-            hexToRgb(hex) {
-                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-                return result ? {
-                    r: parseInt(result[1], 16),
-                    g: parseInt(result[2], 16),
-                    b: parseInt(result[3], 16)
-                } : null;
             }
         }
 
         // Effect functions
         function effectOff() {
-            const controller = window.ledController;
+            const controller = window.aliveLightController;
             if (!controller.isConnected) return;
 
-            document.getElementById('colorPicker').value = '#000000';
-            document.getElementById('brightness').value = 0;
-            document.getElementById('brightnessValue').textContent = '0';
-            document.getElementById('warmWhite').value = 0;
-            document.getElementById('warmWhiteValue').textContent = '0';
+            document.getElementById('redSlider').value = 0;
+            document.getElementById('greenSlider').value = 0;
+            document.getElementById('blueSlider').value = 0;
+            document.getElementById('whiteSlider').value = 0;
             
-            controller.updatePreview();
+            document.getElementById('redValue').textContent = '0';
+            document.getElementById('greenValue').textContent = '0';
+            document.getElementById('blueValue').textContent = '0';
+            document.getElementById('whiteValue').textContent = '0';
+            
+            controller.updateColorPreview();
             controller.updateLED();
         }
 
         function effectSolid() {
-            const controller = window.ledController;
+            const controller = window.aliveLightController;
             if (!controller.isConnected) return;
             
-            // Just apply current settings
             controller.updateLED();
         }
 
         // Placeholder functions for future effects
         function effectFade() {
-            console.log('Fade effect - coming soon!');
+            console.log('[ALIVE LIGHT] Fade effect - coming soon!');
         }
 
         function effectStrobe() {
-            console.log('Strobe effect - coming soon!');
+            console.log('[ALIVE LIGHT] Strobe effect - coming soon!');
         }
 
         function effectRainbow() {
-            console.log('Rainbow effect - coming soon!');
+            console.log('[ALIVE LIGHT] Rainbow effect - coming soon!');
         }
 
         function effectPulse() {
-            console.log('Pulse effect - coming soon!');
+            console.log('[ALIVE LIGHT] Pulse effect - coming soon!');
         }
 
         // Initialize the controller
-        window.ledController = new LEDController();
+        window.aliveLightController = new AliveLightController();
 
         // Service Worker for PWA
         if ('serviceWorker' in navigator) {

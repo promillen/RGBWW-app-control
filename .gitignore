@@ -4,7 +4,7 @@ firmware/sdkconfig.old
 firmware/.vscode/
 
 # QR Codes
-qr_generator/qr_codes/.*
+qr_generator/qr_codes
 
 # IDE files
 .vscode/
