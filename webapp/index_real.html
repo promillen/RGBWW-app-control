@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Festival LED Controller</title>
+    <link rel="manifest" href="/manifest.json">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            color: white;
+        }
+
+        .container {
+            max-width: 400px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            font-size: 28px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .status.disconnected {
+            background: rgba(255, 107, 107, 0.3);
+            border: 2px solid #ff6b6b;
+        }
+
+        .status.connected {
+            background: rgba(81, 207, 102, 0.3);
+            border: 2px solid #51cf66;
+        }
+
+        .connect-btn {
+            background: linear-gradient(45deg, #ff6b6b, #ffa726);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-bottom: 30px;
+            transition: transform 0.2s;
+        }
+
+        .connect-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .connect-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .controls {
+            display: none;
+        }
+
+        .controls.active {
+            display: block;
+        }
+
+        .control-group {
+            margin-bottom: 25px;
+            text-align: left;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .color-picker {
+            width: 100%;
+            height: 60px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            outline: none;
+            cursor: pointer;
+        }
+
+        .slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .preset-btn {
+            padding: 10px;
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .preset-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .device-info {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Festival LED Controller</h1>
+        
+        <div id="deviceInfo" class="device-info" style="display: none;">
+            <strong>Device:</strong> <span id="deviceName">-</span><br>
+            <strong>MAC:</strong> <span id="deviceMAC">-</span>
+        </div>
+
+        <div id="status" class="status disconnected">
+            Not Connected
+        </div>
+
+        <button id="connectBtn" class="connect-btn">
+            Connect to LED
+        </button>
+
+        <div id="controls" class="controls">
+            <div class="control-group">
+                <label for="colorPicker">Color</label>
+                <input type="color" id="colorPicker" class="color-picker" value="#ff0000">
+            </div>
+
+            <div class="control-group">
+                <label for="brightness">Brightness: <span id="brightnessValue">100</span>%</label>
+                <input type="range" id="brightness" class="slider" min="0" max="100" value="100">
+            </div>
+
+            <div class="control-group">
+                <label for="warmWhite">Warm White: <span id="warmWhiteValue">0</span>%</label>
+                <input type="range" id="warmWhite" class="slider" min="0" max="100" value="0">
+            </div>
+
+            <div class="preset-buttons">
+                <button class="preset-btn" style="background: #000;" onclick="setPreset(0,0,0,0)">Off</button>
+                <button class="preset-btn" style="background: #fff; color: #000;" onclick="setPreset(255,255,255,0)">White</button>
+                <button class="preset-btn" style="background: #ff6b6b;" onclick="setPreset(255,0,0,0)">Red</button>
+                <button class="preset-btn" style="background: #51cf66;" onclick="setPreset(0,255,0,0)">Green</button>
+                <button class="preset-btn" style="background: #339af0;" onclick="setPreset(0,0,255,0)">Blue</button>
+                <button class="preset-btn" style="background: #ffa726;" onclick="setPreset(255,165,0,100)">Warm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class LEDController {
+            constructor() {
+                this.device = null;
+                this.server = null;
+                this.characteristics = {};
+                this.isConnected = false;
+                
+                this.initializeUI();
+                this.parseURLParams();
+            }
+
+            parseURLParams() {
+                const params = new URLSearchParams(window.location.search);
+                const deviceName = params.get('device');
+                const mac = params.get('mac');
+                
+                if (deviceName) {
+                    document.getElementById('deviceName').textContent = deviceName;
+                    document.getElementById('deviceMAC').textContent = mac || 'Unknown';
+                    document.getElementById('deviceInfo').style.display = 'block';
+                }
+            }
+
+            initializeUI() {
+                const connectBtn = document.getElementById('connectBtn');
+                const colorPicker = document.getElementById('colorPicker');
+                const brightness = document.getElementById('brightness');
+                const warmWhite = document.getElementById('warmWhite');
+
+                connectBtn.addEventListener('click', () => this.toggleConnection());
+                
+                colorPicker.addEventListener('change', () => this.updateLED());
+                brightness.addEventListener('input', (e) => {
+                    document.getElementById('brightnessValue').textContent = e.target.value;
+                    this.updateLED();
+                });
+                warmWhite.addEventListener('input', (e) => {
+                    document.getElementById('warmWhiteValue').textContent = e.target.value;
+                    this.updateLED();
+                });
+            }
+
+            async toggleConnection() {
+                if (this.isConnected) {
+                    await this.disconnect();
+                } else {
+                    await this.connect();
+                }
+            }
+
+            async connect() {
+                try {
+                    this.updateStatus('Connecting...', 'disconnected');
+                    document.getElementById('connectBtn').disabled = true;
+
+                    // Request Bluetooth device
+                    this.device = await navigator.bluetooth.requestDevice({
+                        filters: [
+                            { namePrefix: 'RGBW' },
+                            { services: ['00ff'] }
+                        ],
+                        optionalServices: ['00ff']
+                    });
+
+                    // Connect to GATT server
+                    this.server = await this.device.gatt.connect();
+                    
+                    // Get service
+                    const service = await this.server.getPrimaryService('00ff');
+                    
+                    // Get characteristics
+                    this.characteristics.red = await service.getCharacteristic('ff01');
+                    this.characteristics.green = await service.getCharacteristic('ff02');
+                    this.characteristics.blue = await service.getCharacteristic('ff03');
+                    this.characteristics.warmWhite = await service.getCharacteristic('ff04');
+
+                    this.isConnected = true;
+                    this.updateStatus('Connected!', 'connected');
+                    document.getElementById('connectBtn').textContent = 'Disconnect';
+                    document.getElementById('controls').classList.add('active');
+                    
+                    // Set initial values
+                    this.updateLED();
+
+                } catch (error) {
+                    console.error('Connection failed:', error);
+                    this.updateStatus('Connection Failed', 'disconnected');
+                } finally {
+                    document.getElementById('connectBtn').disabled = false;
+                }
+            }
+
+            async disconnect() {
+                if (this.device && this.device.gatt.connected) {
+                    this.device.gatt.disconnect();
+                }
+                
+                this.isConnected = false;
+                this.updateStatus('Not Connected', 'disconnected');
+                document.getElementById('connectBtn').textContent = 'Connect to LED';
+                document.getElementById('controls').classList.remove('active');
+            }
+
+            updateStatus(message, type) {
+                const status = document.getElementById('status');
+                status.textContent = message;
+                status.className = `status ${type}`;
+            }
+
+            async updateLED() {
+                if (!this.isConnected) return;
+
+                try {
+                    const color = this.hexToRgb(document.getElementById('colorPicker').value);
+                    const brightness = parseInt(document.getElementById('brightness').value) / 100;
+                    const warmWhite = parseInt(document.getElementById('warmWhite').value) * 255 / 100;
+
+                    const r = Math.round(color.r * brightness);
+                    const g = Math.round(color.g * brightness);
+                    const b = Math.round(color.b * brightness);
+                    const w = Math.round(warmWhite * brightness);
+
+                    await Promise.all([
+                        this.characteristics.red.writeValue(new Uint8Array([r])),
+                        this.characteristics.green.writeValue(new Uint8Array([g])),
+                        this.characteristics.blue.writeValue(new Uint8Array([b])),
+                        this.characteristics.warmWhite.writeValue(new Uint8Array([w]))
+                    ]);
+                } catch (error) {
+                    console.error('Failed to update LED:', error);
+                }
+            }
+
+            hexToRgb(hex) {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : null;
+            }
+        }
+
+        // Global preset function
+        function setPreset(r, g, b, w) {
+            const controller = window.ledController;
+            if (!controller.isConnected) return;
+
+            // Convert to hex for color picker
+            const hex = '#' + [r, g, b].map(x => {
+                const hex = x.toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            }).join('');
+
+            document.getElementById('colorPicker').value = hex;
+            document.getElementById('warmWhite').value = w * 100 / 255;
+            document.getElementById('warmWhiteValue').textContent = Math.round(w * 100 / 255);
+            
+            controller.updateLED();
+        }
+
+        // Check for Web Bluetooth support
+        if ('bluetooth' in navigator) {
+            window.ledController = new LEDController();
+        } else {
+            document.querySelector('.container').innerHTML = `
+                <h1>🚫 Not Supported</h1>
+                <p>Web Bluetooth is not supported on this device/browser.</p>
+                <p>Please use Chrome on Android or a supported browser.</p>
+            `;
+        }
+
+        // Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+    </script>
+</body>
+</html>
