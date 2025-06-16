@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Alive Light Control</title>
-    <link rel="manifest" href="manifest.json">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@300;400;700&display=swap');
         
@@ -119,6 +118,7 @@
             font-family: 'Orbitron', monospace;
             text-transform: uppercase;
             letter-spacing: 1px;
+            position: relative;
         }
 
         .status.disconnected {
@@ -438,6 +438,7 @@
             height: 2px;
             background: linear-gradient(90deg, transparent, var(--primary-green), transparent);
             animation: scan 2s linear infinite;
+            display: none;
         }
 
         @keyframes scan {
@@ -468,7 +469,7 @@
             </div>
 
             <div id="status" class="status disconnected">
-                <div class="scan-animation" style="display: none;"></div>
+                <div class="scan-animation" id="scanAnimation"></div>
                 SYSTEM OFFLINE
             </div>
 
@@ -570,7 +571,8 @@
                 if (!('bluetooth' in navigator)) {
                     this.updateStatus('BLUETOOTH NOT SUPPORTED', 'disconnected');
                     document.getElementById('connectBtn').disabled = true;
-                    document.getElementById('autoConnectBtn').disabled = true;
+                    const autoBtn = document.getElementById('autoConnectBtn');
+                    if (autoBtn) autoBtn.disabled = true;
                     return false;
                 }
                 this.debug('Bluetooth Web API available');
@@ -628,7 +630,7 @@
                 }
                 this.updateThrottle = setTimeout(() => {
                     this.updateLED();
-                }, 150); // Increased delay to reduce BLE congestion
+                }, 150);
             }
 
             updateColorPreview() {
@@ -737,7 +739,6 @@
                 const service = await this.server.getPrimaryService('000000ff-0000-1000-8000-00805f9b34fb');
                 this.debug('Service acquired');
                 
-                // Get characteristics with proper error handling
                 this.characteristics.red = await service.getCharacteristic('0000ff01-0000-1000-8000-00805f9b34fb');
                 this.characteristics.green = await service.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
                 this.characteristics.blue = await service.getCharacteristic('0000ff03-0000-1000-8000-00805f9b34fb');
@@ -755,23 +756,28 @@
             }
 
             showScanAnimation(show) {
-                const animation = document.querySelector('.scan-animation');
-                animation.style.display = show ? 'block' : 'none';
+                const animation = document.getElementById('scanAnimation');
+                if (animation) {
+                    animation.style.display = show ? 'block' : 'none';
+                }
             }
 
             updateConnectButtons() {
                 if (this.isConnected) {
                     document.getElementById('connectBtn').textContent = 'DISCONNECT';
-                    document.getElementById('autoConnectBtn').textContent = 'DISCONNECT';
+                    const autoBtn = document.getElementById('autoConnectBtn');
+                    if (autoBtn) autoBtn.textContent = 'DISCONNECT';
                     document.getElementById('connectBtn').onclick = () => this.disconnect();
-                    document.getElementById('autoConnectBtn').onclick = () => this.disconnect();
+                    if (autoBtn) autoBtn.onclick = () => this.disconnect();
                 } else {
                     document.getElementById('connectBtn').textContent = 'SCAN FOR DEVICES';
                     if (this.targetDeviceName) {
-                        document.getElementById('autoConnectBtn').textContent = `CONNECT TO ${this.targetDeviceName}`;
+                        const autoBtn = document.getElementById('autoConnectBtn');
+                        if (autoBtn) autoBtn.textContent = `CONNECT TO ${this.targetDeviceName}`;
                     }
                     document.getElementById('connectBtn').onclick = () => this.connectWithChoice();
-                    document.getElementById('autoConnectBtn').onclick = () => this.connectToSpecificDevice();
+                    const autoBtn = document.getElementById('autoConnectBtn');
+                    if (autoBtn) autoBtn.onclick = () => this.connectToSpecificDevice();
                 }
             }
 
@@ -804,7 +810,6 @@
 
                     this.debug(`Updating RGBW: ${r}, ${g}, ${b}, ${w}`);
 
-                    // Write characteristics with individual error handling and delays
                     await this.characteristics.red.writeValue(new Uint8Array([r]));
                     await new Promise(resolve => setTimeout(resolve, 10));
                     
@@ -819,13 +824,11 @@
                 } catch (error) {
                     this.error('Failed to update LED', error);
                     
-                    // Only retry if it's a network error and we haven't exceeded max retries
                     if (error.name === 'NetworkError' && this.retryCount < this.maxRetries) {
                         this.retryCount++;
                         this.debug(`Retrying update (${this.retryCount}/${this.maxRetries})`);
                         setTimeout(() => this.updateLED(), 200);
                     } else {
-                        // Don't show user error for occasional BLE hiccups
                         if (this.retryCount >= this.maxRetries) {
                             this.debug('Max retries reached, giving up on this update');
                         }
@@ -880,11 +883,6 @@
 
         // Initialize the controller
         window.aliveLightController = new AliveLightController();
-
-        // Service Worker for PWA
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').catch(console.error);
-        }
     </script>
 </body>
 </html>
