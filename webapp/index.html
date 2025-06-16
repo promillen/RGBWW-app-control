@@ -146,15 +146,15 @@
             transform: scale(1.1);
         }
 
-        .preset-buttons {
+        .effect-buttons {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 10px;
-            margin-top: 20px;
+            margin-top: 30px;
         }
 
-        .preset-btn {
-            padding: 12px;
+        .effect-btn {
+            padding: 12px 8px;
             border: none;
             border-radius: 10px;
             color: white;
@@ -162,11 +162,19 @@
             cursor: pointer;
             transition: all 0.2s;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            font-size: 12px;
+            text-align: center;
         }
 
-        .preset-btn:hover {
+        .effect-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .effect-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
         }
 
         .device-info {
@@ -196,13 +204,27 @@
             transition: all 0.3s ease;
         }
 
+        .section-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.2);
+            margin: 25px 0;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
         @media (max-width: 480px) {
             .container {
                 margin: 10px;
                 padding: 20px;
             }
             
-            .preset-buttons {
+            .effect-buttons {
                 grid-template-columns: repeat(2, 1fr);
             }
         }
@@ -213,8 +235,7 @@
         <h1>🎨 Festival LED Controller</h1>
         
         <div id="deviceInfo" class="device-info" style="display: none;">
-            <strong>Target Device:</strong> <span id="deviceName">-</span><br>
-            <strong>Expected MAC:</strong> <span id="deviceMAC">-</span>
+            <strong>Device:</strong> <span id="deviceName">-</span>
         </div>
 
         <div id="errorMessage" class="error-message" style="display: none;"></div>
@@ -244,13 +265,16 @@
                 <input type="range" id="warmWhite" class="slider" min="0" max="100" value="0">
             </div>
 
-            <div class="preset-buttons">
-                <button class="preset-btn" style="background: #333;" onclick="setPreset(0,0,0,0)">⚫ Off</button>
-                <button class="preset-btn" style="background: #fff; color: #000;" onclick="setPreset(255,255,255,0)">⚪ White</button>
-                <button class="preset-btn" style="background: #ff6b6b;" onclick="setPreset(255,0,0,0)">🔴 Red</button>
-                <button class="preset-btn" style="background: #51cf66;" onclick="setPreset(0,255,0,0)">🟢 Green</button>
-                <button class="preset-btn" style="background: #339af0;" onclick="setPreset(0,0,255,0)">🔵 Blue</button>
-                <button class="preset-btn" style="background: #ffa726;" onclick="setPreset(255,165,0,100)">🔶 Warm</button>
+            <div class="section-divider"></div>
+            
+            <div class="section-title">🎭 Light Effects</div>
+            <div class="effect-buttons">
+                <button class="effect-btn" style="background: #333;" onclick="effectOff()">⚫ Off</button>
+                <button class="effect-btn" style="background: #ff6b6b;" onclick="effectSolid()">🔴 Solid</button>
+                <button class="effect-btn" style="background: linear-gradient(45deg, #ff6b6b, #51cf66);" onclick="effectFade()" disabled>🌈 Fade</button>
+                <button class="effect-btn" style="background: linear-gradient(45deg, #339af0, #ffa726);" onclick="effectStrobe()" disabled>⚡ Strobe</button>
+                <button class="effect-btn" style="background: linear-gradient(45deg, #51cf66, #ff6b6b, #339af0);" onclick="effectRainbow()" disabled>🌈 Rainbow</button>
+                <button class="effect-btn" style="background: linear-gradient(45deg, #ffa726, #ff6b6b);" onclick="effectPulse()" disabled>💓 Pulse</button>
             </div>
         </div>
     </div>
@@ -263,6 +287,7 @@
                 this.characteristics = {};
                 this.isConnected = false;
                 this.targetDeviceName = null;
+                this.updateThrottle = null;
                 
                 this.initializeUI();
                 this.parseURLParams();
@@ -281,12 +306,10 @@
             parseURLParams() {
                 const params = new URLSearchParams(window.location.search);
                 const deviceName = params.get('device');
-                const mac = params.get('mac');
                 
                 if (deviceName) {
                     this.targetDeviceName = deviceName;
                     document.getElementById('deviceName').textContent = deviceName;
-                    document.getElementById('deviceMAC').textContent = mac || 'Unknown';
                     document.getElementById('deviceInfo').style.display = 'block';
                 }
             }
@@ -304,17 +327,27 @@
                 
                 brightness.addEventListener('input', (e) => {
                     document.getElementById('brightnessValue').textContent = e.target.value;
-                    this.updateLED();
+                    this.throttledUpdate();
                     this.updatePreview();
                 });
                 
                 warmWhite.addEventListener('input', (e) => {
                     document.getElementById('warmWhiteValue').textContent = e.target.value;
-                    this.updateLED();
+                    this.throttledUpdate();
                 });
 
                 // Initial preview update
                 this.updatePreview();
+            }
+
+            // Throttle updates to avoid spamming the ESP32
+            throttledUpdate() {
+                if (this.updateThrottle) {
+                    clearTimeout(this.updateThrottle);
+                }
+                this.updateThrottle = setTimeout(() => {
+                    this.updateLED();
+                }, 100); // Wait 100ms before sending
             }
 
             updatePreview() {
@@ -334,7 +367,7 @@
                 errorDiv.style.display = 'block';
                 setTimeout(() => {
                     errorDiv.style.display = 'none';
-                }, 5000);
+                }, 3000);
             }
 
             async toggleConnection() {
@@ -352,24 +385,24 @@
 
                     console.log('Starting connection process...');
 
-                    // Create filters - using the EXACT UUIDs from your nRF Connect screenshot
+                    // Create filters
                     const filters = [];
                     
                     if (this.targetDeviceName) {
                         filters.push({ name: this.targetDeviceName });
-                        console.log(`Added exact name filter: ${this.targetDeviceName}`);
+                        console.log(`Looking for specific device: ${this.targetDeviceName}`);
+                    } else {
+                        // If no specific device, look for any RGBW device
+                        filters.push({ namePrefix: 'RGBW_LED' });
                     }
-                    
-                    // Add general filters for RGBW devices
-                    filters.push({ namePrefix: 'RGBW_LED' });
 
                     console.log('Requesting device with filters:', filters);
 
-                    // Request device with proper UUID format
+                    // Request device
                     this.device = await navigator.bluetooth.requestDevice({
                         filters: filters,
                         optionalServices: [
-                            '000000ff-0000-1000-8000-00805f9b34fb'  // Full UUID format for service 0x00FF
+                            '000000ff-0000-1000-8000-00805f9b34fb'
                         ]
                     });
 
@@ -392,17 +425,21 @@
                     
                     this.updateStatus('Getting services...', 'connecting');
                     
-                    // Get the service using the full UUID
+                    // Get the service
                     const service = await this.server.getPrimaryService('000000ff-0000-1000-8000-00805f9b34fb');
                     console.log('Got LED service');
                     
-                    // Get characteristics using full UUIDs (based on your nRF Connect screenshot)
-                    this.characteristics.red = await service.getCharacteristic('0000ff01-0000-1000-8000-00805f9b34fb');
-                    this.characteristics.green = await service.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
-                    this.characteristics.blue = await service.getCharacteristic('0000ff03-0000-1000-8000-00805f9b34fb');
-                    this.characteristics.warmWhite = await service.getCharacteristic('0000ff04-0000-1000-8000-00805f9b34fb');
-                    
-                    console.log('Got all characteristics');
+                    // Get characteristics with better error handling
+                    try {
+                        this.characteristics.red = await service.getCharacteristic('0000ff01-0000-1000-8000-00805f9b34fb');
+                        this.characteristics.green = await service.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
+                        this.characteristics.blue = await service.getCharacteristic('0000ff03-0000-1000-8000-00805f9b34fb');
+                        this.characteristics.warmWhite = await service.getCharacteristic('0000ff04-0000-1000-8000-00805f9b34fb');
+                        console.log('Got all characteristics');
+                    } catch (charError) {
+                        console.error('Failed to get characteristics:', charError);
+                        throw new Error('Could not find all LED control characteristics');
+                    }
 
                     this.isConnected = true;
                     this.updateStatus(`Connected to ${this.device.name}!`, 'connected');
@@ -417,13 +454,13 @@
                     let errorMessage = 'Connection failed';
                     
                     if (error.name === 'NotFoundError') {
-                        errorMessage = 'No matching device found. Make sure your LED controller is powered on and advertising.';
+                        errorMessage = 'No matching LED device found. Make sure it\'s powered on and nearby.';
                     } else if (error.name === 'NotSupportedError') {
                         errorMessage = 'Bluetooth not supported on this device';
                     } else if (error.name === 'NotAllowedError') {
                         errorMessage = 'Bluetooth access was denied';
                     } else if (error.name === 'NetworkError') {
-                        errorMessage = 'Could not connect to device. Try moving closer or restarting the device.';
+                        errorMessage = 'Could not connect to device. Try moving closer.';
                     } else {
                         errorMessage = `Connection failed: ${error.message}`;
                     }
@@ -467,16 +504,15 @@
 
                     console.log(`Setting RGBW: ${r}, ${g}, ${b}, ${w}`);
 
-                    // Write to characteristics
-                    await Promise.all([
-                        this.characteristics.red.writeValue(new Uint8Array([r])),
-                        this.characteristics.green.writeValue(new Uint8Array([g])),
-                        this.characteristics.blue.writeValue(new Uint8Array([b])),
-                        this.characteristics.warmWhite.writeValue(new Uint8Array([w]))
-                    ]);
+                    // Write to characteristics with individual error handling
+                    await this.characteristics.red.writeValue(new Uint8Array([r]));
+                    await this.characteristics.green.writeValue(new Uint8Array([g]));
+                    await this.characteristics.blue.writeValue(new Uint8Array([b]));
+                    await this.characteristics.warmWhite.writeValue(new Uint8Array([w]));
+
                 } catch (error) {
                     console.error('Failed to update LED:', error);
-                    this.showError('Failed to send data to LED controller');
+                    this.showError('Failed to send data to LED');
                 }
             }
 
@@ -490,23 +526,44 @@
             }
         }
 
-        // Global preset function
-        function setPreset(r, g, b, w) {
+        // Effect functions
+        function effectOff() {
             const controller = window.ledController;
             if (!controller.isConnected) return;
 
-            // Convert to hex for color picker
-            const hex = '#' + [r, g, b].map(x => {
-                const hex = x.toString(16);
-                return hex.length === 1 ? '0' + hex : hex;
-            }).join('');
-
-            document.getElementById('colorPicker').value = hex;
-            document.getElementById('warmWhite').value = Math.round(w * 100 / 255);
-            document.getElementById('warmWhiteValue').textContent = Math.round(w * 100 / 255);
+            document.getElementById('colorPicker').value = '#000000';
+            document.getElementById('brightness').value = 0;
+            document.getElementById('brightnessValue').textContent = '0';
+            document.getElementById('warmWhite').value = 0;
+            document.getElementById('warmWhiteValue').textContent = '0';
             
             controller.updatePreview();
             controller.updateLED();
+        }
+
+        function effectSolid() {
+            const controller = window.ledController;
+            if (!controller.isConnected) return;
+            
+            // Just apply current settings
+            controller.updateLED();
+        }
+
+        // Placeholder functions for future effects
+        function effectFade() {
+            console.log('Fade effect - coming soon!');
+        }
+
+        function effectStrobe() {
+            console.log('Strobe effect - coming soon!');
+        }
+
+        function effectRainbow() {
+            console.log('Rainbow effect - coming soon!');
+        }
+
+        function effectPulse() {
+            console.log('Pulse effect - coming soon!');
         }
 
         // Initialize the controller

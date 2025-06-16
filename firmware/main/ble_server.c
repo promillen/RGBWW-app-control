@@ -87,7 +87,7 @@ static int rgbw_red_access(uint16_t conn_handle, uint16_t attr_handle,
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
             pwm_set_duty(PWM_CHANNEL_RED, current_rgbw[0]);
-            ESP_LOGI(TAG, "Red set to: %d", current_rgbw[0]);
+            ESP_LOGI(TAG, "🔴 Red set to: %d", current_rgbw[0]);
             return 0;
 
         default:
@@ -113,7 +113,7 @@ static int rgbw_green_access(uint16_t conn_handle, uint16_t attr_handle,
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
             pwm_set_duty(PWM_CHANNEL_GREEN, current_rgbw[1]);
-            ESP_LOGI(TAG, "Green set to: %d", current_rgbw[1]);
+            ESP_LOGI(TAG, "🟢 Green set to: %d", current_rgbw[1]);
             return 0;
 
         default:
@@ -139,7 +139,7 @@ static int rgbw_blue_access(uint16_t conn_handle, uint16_t attr_handle,
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
             pwm_set_duty(PWM_CHANNEL_BLUE, current_rgbw[2]);
-            ESP_LOGI(TAG, "Blue set to: %d", current_rgbw[2]);
+            ESP_LOGI(TAG, "🔵 Blue set to: %d", current_rgbw[2]);
             return 0;
 
         default:
@@ -165,7 +165,7 @@ static int rgbw_white_access(uint16_t conn_handle, uint16_t attr_handle,
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
             pwm_set_duty(PWM_CHANNEL_WARM_WHITE, current_rgbw[3]);
-            ESP_LOGI(TAG, "White set to: %d", current_rgbw[3]);
+            ESP_LOGI(TAG, "⚪ Warm White set to: %d", current_rgbw[3]);
             return 0;
 
         default:
@@ -187,7 +187,7 @@ int ble_gap_event(struct ble_gap_event *event, void *arg)
             if (event->connect.status == 0) {
                 rc = ble_gap_conn_find(event->connect.conn_handle, &desc);
                 assert(rc == 0);
-                ESP_LOGI(TAG, "Connected to %02x:%02x:%02x:%02x:%02x:%02x",
+                ESP_LOGI(TAG, "🔗 Connected to %02x:%02x:%02x:%02x:%02x:%02x",
                          desc.peer_id_addr.val[0], desc.peer_id_addr.val[1],
                          desc.peer_id_addr.val[2], desc.peer_id_addr.val[3],
                          desc.peer_id_addr.val[4], desc.peer_id_addr.val[5]);
@@ -199,7 +199,7 @@ int ble_gap_event(struct ble_gap_event *event, void *arg)
             return 0;
 
         case BLE_GAP_EVENT_DISCONNECT:
-            ESP_LOGI(TAG, "disconnect; reason=%d", event->disconnect.reason);
+            ESP_LOGI(TAG, "🔌 disconnect; reason=%d", event->disconnect.reason);
             /* Connection terminated; resume advertising */
             ble_advertise();
             return 0;
@@ -306,7 +306,7 @@ void ble_advertise(void)
         return;
     }
 
-    ESP_LOGI(TAG, "advertising started");
+    ESP_LOGI(TAG, "📡 advertising started");
 }
 
 void ble_on_reset(int reason)
@@ -333,7 +333,7 @@ void ble_on_sync(void)
     uint8_t addr_val[6] = {0};
     rc = ble_hs_id_copy_addr(own_addr_type, addr_val, NULL);
 
-    ESP_LOGI(TAG, "Device Address: %02x:%02x:%02x:%02x:%02x:%02x",
+    ESP_LOGI(TAG, "📱 Device Address: %02x:%02x:%02x:%02x:%02x:%02x",
              addr_val[5], addr_val[4], addr_val[3],
              addr_val[2], addr_val[1], addr_val[0]);
 

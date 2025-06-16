@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 QR Code Generator for Festival LED Controllers
-Generates QR codes that link to the web app with device-specific parameters
+Generates QR codes that link directly to the web app with device names
 """
 
 import qrcode
@@ -9,7 +9,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 import argparse
 
-def generate_qr_codes(base_url, num_devices=10, device_prefix="RGBW_LED", start_num=1):
+def generate_qr_codes(base_url, num_devices=10, device_prefix="RGBW_LED", start_num=1, auto_connect=False):
     """Generate QR codes for multiple LED devices"""
     
     # Create output directory
@@ -19,23 +19,22 @@ def generate_qr_codes(base_url, num_devices=10, device_prefix="RGBW_LED", start_
     print(f"Generating {num_devices} QR codes...")
     print(f"Base URL: {base_url}")
     print(f"Device naming: {device_prefix}_{start_num:03d} onwards")
+    print(f"Auto-connect: {'Yes' if auto_connect else 'No'}")
     print("-" * 50)
     
     for i in range(start_num, start_num + num_devices):
         device_id = f"{device_prefix}_{i:03d}"  # RGBW_LED_001, RGBW_LED_002, etc.
         
-        # Generate a realistic-looking MAC address for demo
-        # In real use, you would get this from your ESP32 or leave it out
-        mac = f"24:0A:C4:{(i//256):02X}:{(i%256):02X}:{(i*7%256):02X}"
-        
-        # Create URL with device parameters
-        url = f"{base_url}?device={device_id}&mac={mac}"
+        # Create URL with device parameter
+        url = f"{base_url}?device={device_id}"
+        if auto_connect:
+            url += "&autoconnect=true"
         
         # Generate QR code
         qr = qrcode.QRCode(
             version=1,  # Controls size (1 is smallest)
             error_correction=qrcode.constants.ERROR_CORRECT_M,  # Medium error correction
-            box_size=8,  # Smaller box size for better printing
+            box_size=8,  # Box size for good scanning
             border=4,
         )
         qr.add_data(url)
@@ -46,7 +45,7 @@ def generate_qr_codes(base_url, num_devices=10, device_prefix="RGBW_LED", start_
         
         # Create a larger image with text labels
         img_width = 350
-        img_height = 450
+        img_height = 420
         img = Image.new('RGB', (img_width, img_height), 'white')
         
         # Resize QR code to fit
@@ -63,14 +62,14 @@ def generate_qr_codes(base_url, num_devices=10, device_prefix="RGBW_LED", start_
         
         try:
             # Try to use system fonts
-            title_font = ImageFont.truetype("arial.ttf", 20)
-            subtitle_font = ImageFont.truetype("arial.ttf", 14)
+            title_font = ImageFont.truetype("arial.ttf", 22)
+            subtitle_font = ImageFont.truetype("arial.ttf", 16)
             small_font = ImageFont.truetype("arial.ttf", 12)
         except (OSError, IOError):
             try:
                 # Try alternative font names
-                title_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 20)
-                subtitle_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 14)
+                title_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 22)
+                subtitle_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 16)
                 small_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 12)
             except (OSError, IOError):
                 # Fallback to default font
@@ -93,35 +92,25 @@ def generate_qr_codes(base_url, num_devices=10, device_prefix="RGBW_LED", start_
         draw.text((device_x, 325), device_text, fill="black", font=subtitle_font)
         
         # Instructions
-        instruction_text = "Scan with phone to control"
+        if auto_connect:
+            instruction_text = "Scan to auto-connect & control"
+        else:
+            instruction_text = "Scan with phone to control"
         instr_bbox = draw.textbbox((0, 0), instruction_text, font=small_font)
         instr_width = instr_bbox[2] - instr_bbox[0]
         instr_x = (img_width - instr_width) // 2
-        draw.text((instr_x, 350), instruction_text, fill="gray", font=small_font)
+        draw.text((instr_x, 355), instruction_text, fill="gray", font=small_font)
         
-        # MAC address (smaller text)
-        mac_text = f"MAC: {mac}"
-        mac_bbox = draw.textbbox((0, 0), mac_text, font=small_font)
-        mac_width = mac_bbox[2] - mac_bbox[0]
-        mac_x = (img_width - mac_width) // 2
-        draw.text((mac_x, 370), mac_text, fill="gray", font=small_font)
+        # Website URL (for reference)
+        url_parts = base_url.replace("https://", "").replace("http://", "")
+        url_text = url_parts
+        if len(url_text) > 30:
+            url_text = url_text[:27] + "..."
         
-        # URL for reference (very small)
-        url_font = small_font
-        url_lines = []
-        if len(url) > 45:
-            # Split long URLs
-            url_lines = [url[j:j+45] for j in range(0, len(url), 45)]
-        else:
-            url_lines = [url]
-        
-        y_offset = 390
-        for line in url_lines[:2]:  # Max 2 lines
-            line_bbox = draw.textbbox((0, 0), line, font=url_font)
-            line_width = line_bbox[2] - line_bbox[0]
-            line_x = (img_width - line_width) // 2
-            draw.text((line_x, y_offset), line, fill="lightgray", font=url_font)
-            y_offset += 12
+        url_bbox = draw.textbbox((0, 0), url_text, font=small_font)
+        url_width = url_bbox[2] - url_bbox[0]
+        url_x = (img_width - url_width) // 2
+        draw.text((url_x, 380), url_text, fill="lightgray", font=small_font)
         
         # Save image
         filename = f"{output_dir}/{device_id}_qr.png"
@@ -131,7 +120,7 @@ def generate_qr_codes(base_url, num_devices=10, device_prefix="RGBW_LED", start_
     print(f"\n🎉 Successfully generated {num_devices} QR codes!")
     return output_dir
 
-def generate_batch_sheet(output_dir, num_devices, cols=3):
+def generate_batch_sheet(output_dir, cols=3):
     """Generate a single sheet with multiple QR codes for easy printing"""
     qr_files = [f for f in os.listdir(output_dir) if f.endswith('_qr.png')]
     qr_files.sort()
@@ -142,8 +131,8 @@ def generate_batch_sheet(output_dir, num_devices, cols=3):
     
     # Calculate sheet dimensions
     qr_width = 350
-    qr_height = 450
-    margin = 20
+    qr_height = 420
+    margin = 15
     
     rows = (len(qr_files) + cols - 1) // cols
     sheet_width = cols * qr_width + (cols + 1) * margin
@@ -169,7 +158,7 @@ def generate_batch_sheet(output_dir, num_devices, cols=3):
 
 def main():
     parser = argparse.ArgumentParser(description='Generate QR codes for LED controllers')
-    parser.add_argument('--url', default='https://your-domain.github.io/led-control', 
+    parser.add_argument('--url', default='https://yourusername.github.io/led-control', 
                        help='Base URL for the web app')
     parser.add_argument('--count', type=int, default=10, 
                        help='Number of QR codes to generate')
@@ -179,6 +168,8 @@ def main():
                        help='Starting device number')
     parser.add_argument('--batch', action='store_true', 
                        help='Generate a batch sheet for printing')
+    parser.add_argument('--auto-connect', action='store_true',
+                       help='Add auto-connect parameter to URLs (future feature)')
     
     args = parser.parse_args()
     
@@ -190,21 +181,25 @@ def main():
         base_url=args.url,
         num_devices=args.count,
         device_prefix=args.prefix,
-        start_num=args.start
+        start_num=args.start,
+        auto_connect=args.auto_connect
     )
     
     # Generate batch sheet if requested
     if args.batch:
         print(f"\n📄 Generating batch sheet...")
-        generate_batch_sheet(output_dir, args.count)
+        generate_batch_sheet(output_dir)
     
     print(f"\n📁 All files saved to: {output_dir}/")
     print(f"\n📋 Next steps:")
-    print(f"1. Host your web app at: {args.url}")
+    print(f"1. Deploy your web app to: {args.url}")
     print(f"2. Print the QR codes (individual or batch sheet)")
-    print(f"3. Flash ESP32 with device names: {args.prefix}_001, {args.prefix}_002, etc.")
+    print(f"3. Flash ESP32 devices with names: {args.prefix}_001, {args.prefix}_002, etc.")
     print(f"4. Attach QR codes to corresponding devices")
     print(f"\n💡 Test by scanning a QR code with your phone!")
+    
+    if args.auto_connect:
+        print(f"\n⚠️  Auto-connect feature is not yet implemented in the web app")
 
 if __name__ == "__main__":
     # Check dependencies
