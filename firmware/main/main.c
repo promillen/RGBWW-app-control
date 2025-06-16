@@ -2,20 +2,20 @@
 #include <string.h>
 
 #include "ble_server.h"
-#include "esp_bt.h"
-#include "esp_bt_main.h"
-#include "esp_gap_ble_api.h"
-#include "esp_gatts_api.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "nimble/nimble_port.h"
+#include "nimble/nimble_port_freertos.h"
 #include "nvs_flash.h"
 #include "pwm_control.h"
 
 static const char *TAG = "RGBW_MAIN";
 
 void app_main(void) {
-    // Initialize NVS
+    int rc;
+
+    /* Initialize NVS — it is used to store PHY calibration data */
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -23,41 +23,22 @@ void app_main(void) {
     }
     ESP_ERROR_CHECK(ret);
 
-    // Initialize PWM for LED control
+    /* Initialize PWM for LED control */
     pwm_init();
 
-    // Initialize Bluetooth
-    ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
+    ESP_LOGI(TAG, "Starting NimBLE BLE stack");
 
-    esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
-    ret = esp_bt_controller_init(&bt_cfg);
-    if (ret) {
-        ESP_LOGE(TAG, "%s initialize controller failed: %s", __func__, esp_err_to_name(ret));
+    /* Initialize NimBLE */
+    ret = nimble_port_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to init nimble %d ", ret);
         return;
     }
 
-    ret = esp_bt_controller_enable(ESP_BT_MODE_BLE);
-    if (ret) {
-        ESP_LOGE(TAG, "%s enable controller failed: %s", __func__, esp_err_to_name(ret));
-        return;
-    }
-
-    ret = esp_bluedroid_init();
-    if (ret) {
-        ESP_LOGE(TAG, "%s init bluetooth failed: %s", __func__, esp_err_to_name(ret));
-        return;
-    }
-
-    ret = esp_bluedroid_enable();
-    if (ret) {
-        ESP_LOGE(TAG, "%s enable bluetooth failed: %s", __func__, esp_err_to_name(ret));
-        return;
-    }
-
-    // Initialize BLE server
+    /* Initialize BLE server */
     ble_server_init();
 
     ESP_LOGI(TAG, "RGBW LED Controller started");
-    ESP_LOGI(TAG, "BLE advertising as: RGBW_LED_001");
+    ESP_LOGI(TAG, "BLE advertising as: %s", DEVICE_NAME);
     ESP_LOGI(TAG, "Ready for connections!");
 }

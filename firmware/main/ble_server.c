@@ -1,353 +1,383 @@
 #include "ble_server.h"
 
+#include <assert.h>
+#include <stdio.h>
 #include <string.h>
 
-#include "esp_bt.h"
-#include "esp_bt_defs.h"
-#include "esp_bt_main.h"
-#include "esp_gap_ble_api.h"
-#include "esp_gatt_common_api.h"
-#include "esp_gatts_api.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "host/ble_hs.h"
+#include "host/ble_uuid.h"
+#include "host/util/util.h"
+#include "nimble/hci_common.h"
+#include "nimble/nimble_port.h"
+#include "nimble/nimble_port_freertos.h"
+#include "services/gap/ble_svc_gap.h"
+#include "services/gatt/ble_svc_gatt.h"
 #include "pwm_control.h"
 
 static const char *TAG = "BLE_SERVER";
 
-#define GATTS_TABLE_TAG "GATTS_TABLE"
-#define PROFILE_NUM 1
-#define PROFILE_A_APP_ID 0
-#define DEVICE_NAME "RGBW_LED_001"  // Change this for each device
-#define SVC_INST_ID 0
+static uint8_t own_addr_type;
 
-/* Advertisement config flags */
-#define ADV_CONFIG_FLAG (1 << 0)
-#define SCAN_RSP_CONFIG_FLAG (1 << 1)
+// GATT characteristic access functions
+static int rgbw_red_access(uint16_t conn_handle, uint16_t attr_handle,
+                           struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int rgbw_green_access(uint16_t conn_handle, uint16_t attr_handle,
+                             struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int rgbw_blue_access(uint16_t conn_handle, uint16_t attr_handle,
+                            struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int rgbw_white_access(uint16_t conn_handle, uint16_t attr_handle,
+                             struct ble_gatt_access_ctxt *ctxt, void *arg);
 
-static uint8_t adv_config_done = 0;
-
-/* Attribute table indices */
-enum {
-    IDX_SVC,
-    IDX_CHAR_RED_DECL,
-    IDX_CHAR_RED_VAL,
-    IDX_CHAR_GREEN_DECL,
-    IDX_CHAR_GREEN_VAL,
-    IDX_CHAR_BLUE_DECL,
-    IDX_CHAR_BLUE_VAL,
-    IDX_CHAR_WHITE_DECL,
-    IDX_CHAR_WHITE_VAL,
-    HRS_IDX_NB,
-};
-
-uint16_t rgbw_handle_table[HRS_IDX_NB];
-
-/* Service UUID */
-static uint8_t service_uuid[16] = {
-    0xfb,
-    0x34,
-    0x9b,
-    0x5f,
-    0x80,
-    0x00,
-    0x00,
-    0x80,
-    0x00,
-    0x10,
-    0x00,
-    0x00,
-    0xFF,
-    0x00,
-    0x00,
-    0x00,
-};
-
-/* Advertisement data */
-static esp_ble_adv_data_t adv_data = {
-    .set_scan_rsp = false,
-    .include_name = true,
-    .include_txpower = true,
-    .min_interval = 0x0006,
-    .max_interval = 0x0010,
-    .appearance = 0x00,
-    .manufacturer_len = 0,
-    .p_manufacturer_data = NULL,
-    .service_data_len = 0,
-    .p_service_data = NULL,
-    .service_uuid_len = sizeof(service_uuid),
-    .p_service_uuid = service_uuid,
-    .flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT),
-};
-
-static esp_ble_adv_params_t adv_params = {
-    .adv_int_min = 0x20,
-    .adv_int_max = 0x40,
-    .adv_type = ADV_TYPE_IND,
-    .own_addr_type = BLE_ADDR_TYPE_PUBLIC,
-    .channel_map = ADV_CHNL_ALL,
-    .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
-};
-
-struct gatts_profile_inst {
-    esp_gatts_cb_t gatts_cb;
-    uint16_t gatts_if;
-    uint16_t app_id;
-    uint16_t conn_id;
-    uint16_t service_handle;
-    esp_gatt_srvc_id_t service_id;
-    uint16_t char_handle;
-    esp_bt_uuid_t char_uuid;
-    esp_gatt_perm_t perm;
-    esp_gatt_char_prop_t property;
-    uint16_t descr_handle;
-    esp_bt_uuid_t descr_uuid;
-};
-
-static void gatts_profile_event_handler(esp_gatts_cb_event_t event,
-                                        esp_gatt_if_t gatts_if,
-                                        esp_ble_gatts_cb_param_t *param);
-
-/* Profile table */
-static struct gatts_profile_inst rgbw_profile_tab[PROFILE_NUM] = {
-    [PROFILE_A_APP_ID] = {
-        .gatts_cb = gatts_profile_event_handler,
-        .gatts_if = ESP_GATT_IF_NONE,
+// GATT service definition
+static const struct ble_gatt_svc_def gatt_svc_def[] = {
+    {
+        .type = BLE_GATT_SVC_TYPE_PRIMARY,
+        .uuid = BLE_UUID16_DECLARE(RGBW_SERVICE_UUID),
+        .characteristics = (struct ble_gatt_chr_def[]){
+            {
+                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_RED),
+                .access_cb = rgbw_red_access,
+                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+            },
+            {
+                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_GREEN),
+                .access_cb = rgbw_green_access,
+                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+            },
+            {
+                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_BLUE),
+                .access_cb = rgbw_blue_access,
+                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+            },
+            {
+                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_WARM_WHITE),
+                .access_cb = rgbw_white_access,
+                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+            },
+            {
+                0, /* No more characteristics in this service */
+            },
+        }
+    },
+    {
+        0, /* No more services */
     },
 };
 
-/* Service and characteristics UUIDs */
-static const uint16_t GATTS_SERVICE_UUID = 0x00FF;
-static const uint16_t GATTS_CHAR_UUID_RED = 0xFF01;
-static const uint16_t GATTS_CHAR_UUID_GREEN = 0xFF02;
-static const uint16_t GATTS_CHAR_UUID_BLUE = 0xFF03;
-static const uint16_t GATTS_CHAR_UUID_WARM_WHITE = 0xFF04;
+// Current RGBW values
+static uint8_t current_rgbw[4] = {0, 0, 0, 0};
 
-static const uint16_t primary_service_uuid = ESP_GATT_UUID_PRI_SERVICE;
-static const uint16_t character_declaration_uuid = ESP_GATT_UUID_CHAR_DECLARE;
-static const uint8_t char_prop_read_write = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE;
-static const uint8_t rgbw_values[4] = {0, 0, 0, 0};
+static int rgbw_red_access(uint16_t conn_handle, uint16_t attr_handle,
+                           struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    int rc;
 
-/* Full Database Description */
-static const esp_gatts_attr_db_t gatt_db[HRS_IDX_NB] = {
-    // Service Declaration
-    [IDX_SVC] =
-        {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&primary_service_uuid, ESP_GATT_PERM_READ, sizeof(uint16_t), sizeof(GATTS_SERVICE_UUID), (uint8_t *)&GATTS_SERVICE_UUID}},
+    switch (ctxt->op) {
+        case BLE_GATT_ACCESS_OP_READ_CHR:
+            rc = os_mbuf_append(ctxt->om, &current_rgbw[0], sizeof(uint8_t));
+            ESP_LOGI(TAG, "Red read: %d", current_rgbw[0]);
+            return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 
-    // Red Characteristic Declaration
-    [IDX_CHAR_RED_DECL] =
-        {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, sizeof(uint8_t), sizeof(uint8_t), (uint8_t *)&char_prop_read_write}},
-
-    // Red Characteristic Value
-    [IDX_CHAR_RED_VAL] =
-        {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&GATTS_CHAR_UUID_RED, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, sizeof(uint8_t), sizeof(uint8_t), (uint8_t *)&rgbw_values[0]}},
-
-    // Green Characteristic Declaration
-    [IDX_CHAR_GREEN_DECL] =
-        {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, sizeof(uint8_t), sizeof(uint8_t), (uint8_t *)&char_prop_read_write}},
-
-    // Green Characteristic Value
-    [IDX_CHAR_GREEN_VAL] =
-        {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&GATTS_CHAR_UUID_GREEN, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, sizeof(uint8_t), sizeof(uint8_t), (uint8_t *)&rgbw_values[1]}},
-
-    // Blue Characteristic Declaration
-    [IDX_CHAR_BLUE_DECL] =
-        {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, sizeof(uint8_t), sizeof(uint8_t), (uint8_t *)&char_prop_read_write}},
-
-    // Blue Characteristic Value
-    [IDX_CHAR_BLUE_VAL] =
-        {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&GATTS_CHAR_UUID_BLUE, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, sizeof(uint8_t), sizeof(uint8_t), (uint8_t *)&rgbw_values[2]}},
-
-    // Warm White Characteristic Declaration
-    [IDX_CHAR_WHITE_DECL] =
-        {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, sizeof(uint8_t), sizeof(uint8_t), (uint8_t *)&char_prop_read_write}},
-
-    // Warm White Characteristic Value
-    [IDX_CHAR_WHITE_VAL] =
-        {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&GATTS_CHAR_UUID_WARM_WHITE, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, sizeof(uint8_t), sizeof(uint8_t), (uint8_t *)&rgbw_values[3]}},
-};
-
-void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-    switch (event) {
-        case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
-            adv_config_done &= (~ADV_CONFIG_FLAG);
-            if (adv_config_done == 0) {
-                esp_ble_gap_start_advertising(&adv_params);
+        case BLE_GATT_ACCESS_OP_WRITE_CHR:
+            rc = ble_hs_mbuf_to_flat(ctxt->om, &current_rgbw[0], sizeof(uint8_t), NULL);
+            if (rc != 0) {
+                return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
-            break;
-        case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
-            adv_config_done &= (~SCAN_RSP_CONFIG_FLAG);
-            if (adv_config_done == 0) {
-                esp_ble_gap_start_advertising(&adv_params);
-            }
-            break;
-        case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
-            if (param->adv_start_cmpl.status != ESP_BT_STATUS_SUCCESS) {
-                ESP_LOGE(TAG, "advertising start failed");
-            } else {
-                ESP_LOGI(TAG, "advertising start successfully");
-            }
-            break;
-        case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
-            if (param->adv_stop_cmpl.status != ESP_BT_STATUS_SUCCESS) {
-                ESP_LOGE(TAG, "Advertising stop failed");
-            } else {
-                ESP_LOGI(TAG, "Stop adv successfully");
-            }
-            break;
-        case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
-            ESP_LOGI(TAG, "update connection params status = %d, min_int = %d, max_int = %d,conn_int = %d,latency = %d, timeout = %d",
-                     param->update_conn_params.status,
-                     param->update_conn_params.min_int,
-                     param->update_conn_params.max_int,
-                     param->update_conn_params.conn_int,
-                     param->update_conn_params.latency,
-                     param->update_conn_params.timeout);
-            break;
+            pwm_set_duty(PWM_CHANNEL_RED, current_rgbw[0]);
+            ESP_LOGI(TAG, "Red set to: %d", current_rgbw[0]);
+            return 0;
+
         default:
-            break;
+            assert(0);
+            return BLE_ATT_ERR_UNLIKELY;
     }
 }
 
-static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
-    switch (event) {
-        case ESP_GATTS_REG_EVT: {
-            esp_err_t set_dev_name_ret = esp_ble_gap_set_device_name(DEVICE_NAME);
-            if (set_dev_name_ret) {
-                ESP_LOGE(TAG, "set device name failed, error code = %x", set_dev_name_ret);
-            }
-            esp_err_t ret = esp_ble_gap_config_adv_data(&adv_data);
-            if (ret) {
-                ESP_LOGE(TAG, "config adv data failed, error code = %x", ret);
-            }
-            adv_config_done |= ADV_CONFIG_FLAG;
-            esp_err_t create_attr_ret = esp_ble_gatts_create_attr_tab(gatt_db, gatts_if, HRS_IDX_NB, SVC_INST_ID);
-            if (create_attr_ret) {
-                ESP_LOGE(TAG, "create attr table failed, error code = %x", create_attr_ret);
-            }
-        } break;
-        case ESP_GATTS_READ_EVT:
-            ESP_LOGI(TAG, "ESP_GATTS_READ_EVT");
-            break;
-        case ESP_GATTS_WRITE_EVT:
-            if (!param->write.is_prep) {
-                ESP_LOGI(TAG, "GATT_WRITE_EVT, handle = %d, value len = %d, value :", param->write.handle, param->write.len);
-                ESP_LOG_BUFFER_HEX(TAG, param->write.value, param->write.len);
+static int rgbw_green_access(uint16_t conn_handle, uint16_t attr_handle,
+                             struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    int rc;
 
-                // Handle color changes
-                if (param->write.len == 1) {
-                    uint8_t value = param->write.value[0];
+    switch (ctxt->op) {
+        case BLE_GATT_ACCESS_OP_READ_CHR:
+            rc = os_mbuf_append(ctxt->om, &current_rgbw[1], sizeof(uint8_t));
+            ESP_LOGI(TAG, "Green read: %d", current_rgbw[1]);
+            return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 
-                    if (param->write.handle == rgbw_handle_table[IDX_CHAR_RED_VAL]) {
-                        pwm_set_duty(PWM_CHANNEL_RED, value);
-                        ESP_LOGI(TAG, "Red set to: %d", value);
-                    } else if (param->write.handle == rgbw_handle_table[IDX_CHAR_GREEN_VAL]) {
-                        pwm_set_duty(PWM_CHANNEL_GREEN, value);
-                        ESP_LOGI(TAG, "Green set to: %d", value);
-                    } else if (param->write.handle == rgbw_handle_table[IDX_CHAR_BLUE_VAL]) {
-                        pwm_set_duty(PWM_CHANNEL_BLUE, value);
-                        ESP_LOGI(TAG, "Blue set to: %d", value);
-                    } else if (param->write.handle == rgbw_handle_table[IDX_CHAR_WHITE_VAL]) {
-                        pwm_set_duty(PWM_CHANNEL_WARM_WHITE, value);
-                        ESP_LOGI(TAG, "Warm White set to: %d", value);
-                    }
-                }
+        case BLE_GATT_ACCESS_OP_WRITE_CHR:
+            rc = ble_hs_mbuf_to_flat(ctxt->om, &current_rgbw[1], sizeof(uint8_t), NULL);
+            if (rc != 0) {
+                return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+            }
+            pwm_set_duty(PWM_CHANNEL_GREEN, current_rgbw[1]);
+            ESP_LOGI(TAG, "Green set to: %d", current_rgbw[1]);
+            return 0;
 
-                if (param->write.need_rsp) {
-                    esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, NULL);
-                }
-            } else {
-                ESP_LOGI(TAG, "ESP_GATTS_PREP_WRITE_EVT");
-            }
-            break;
-        case ESP_GATTS_EXEC_WRITE_EVT:
-            ESP_LOGI(TAG, "ESP_GATTS_EXEC_WRITE_EVT");
-            break;
-        case ESP_GATTS_MTU_EVT:
-            ESP_LOGI(TAG, "ESP_GATTS_MTU_EVT, MTU %d", param->mtu.mtu);
-            break;
-        case ESP_GATTS_CONF_EVT:
-            ESP_LOGI(TAG, "ESP_GATTS_CONF_EVT, status = %d", param->conf.status);
-            break;
-        case ESP_GATTS_START_EVT:
-            ESP_LOGI(TAG, "SERVICE_START_EVT, status %d, service_handle %d", param->start.status, param->start.service_handle);
-            break;
-        case ESP_GATTS_CONNECT_EVT:
-            ESP_LOGI(TAG, "ESP_GATTS_CONNECT_EVT, conn_id = %d", param->connect.conn_id);
-            ESP_LOG_BUFFER_HEX(TAG, param->connect.remote_bda, 6);
-            esp_ble_conn_update_params_t conn_params = {0};
-            memcpy(conn_params.bda, param->connect.remote_bda, sizeof(esp_bd_addr_t));
-            conn_params.latency = 0;
-            conn_params.max_int = 0x20;
-            conn_params.min_int = 0x10;
-            conn_params.timeout = 400;
-            esp_ble_gap_update_conn_params(&conn_params);
-            break;
-        case ESP_GATTS_DISCONNECT_EVT:
-            ESP_LOGI(TAG, "ESP_GATTS_DISCONNECT_EVT, reason = 0x%x", param->disconnect.reason);
-            esp_ble_gap_start_advertising(&adv_params);
-            break;
-        case ESP_GATTS_CREAT_ATTR_TAB_EVT: {
-            if (param->add_attr_tab.status != ESP_GATT_OK) {
-                ESP_LOGE(TAG, "create attribute table failed, error code=0x%x", param->add_attr_tab.status);
-            } else if (param->add_attr_tab.num_handle != HRS_IDX_NB) {
-                ESP_LOGE(TAG, "create attribute table abnormally, num_handle (%d) doesn't equal to HRS_IDX_NB(%d)",
-                         param->add_attr_tab.num_handle, HRS_IDX_NB);
-            } else {
-                ESP_LOGI(TAG, "create attribute table successfully, the number handle = %d", param->add_attr_tab.num_handle);
-                memcpy(rgbw_handle_table, param->add_attr_tab.handles, sizeof(rgbw_handle_table));
-                esp_ble_gatts_start_service(rgbw_handle_table[IDX_SVC]);
-            }
-            break;
-        }
         default:
-            break;
+            assert(0);
+            return BLE_ATT_ERR_UNLIKELY;
     }
 }
 
-void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
-    if (event == ESP_GATTS_REG_EVT) {
-        if (param->reg.status == ESP_GATT_OK) {
-            rgbw_profile_tab[PROFILE_A_APP_ID].gatts_if = gatts_if;
-        } else {
-            ESP_LOGI(TAG, "reg app failed, app_id %04x, status %d",
-                     param->reg.app_id,
-                     param->reg.status);
-            return;
-        }
-    }
+static int rgbw_blue_access(uint16_t conn_handle, uint16_t attr_handle,
+                            struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    int rc;
 
-    for (int idx = 0; idx < PROFILE_NUM; idx++) {
-        if (gatts_if == ESP_GATT_IF_NONE || gatts_if == rgbw_profile_tab[idx].gatts_if) {
-            if (rgbw_profile_tab[idx].gatts_cb) {
-                rgbw_profile_tab[idx].gatts_cb(event, gatts_if, param);
+    switch (ctxt->op) {
+        case BLE_GATT_ACCESS_OP_READ_CHR:
+            rc = os_mbuf_append(ctxt->om, &current_rgbw[2], sizeof(uint8_t));
+            ESP_LOGI(TAG, "Blue read: %d", current_rgbw[2]);
+            return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+
+        case BLE_GATT_ACCESS_OP_WRITE_CHR:
+            rc = ble_hs_mbuf_to_flat(ctxt->om, &current_rgbw[2], sizeof(uint8_t), NULL);
+            if (rc != 0) {
+                return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
-        }
+            pwm_set_duty(PWM_CHANNEL_BLUE, current_rgbw[2]);
+            ESP_LOGI(TAG, "Blue set to: %d", current_rgbw[2]);
+            return 0;
+
+        default:
+            assert(0);
+            return BLE_ATT_ERR_UNLIKELY;
     }
 }
 
-void ble_server_init(void) {
-    esp_err_t ret;
+static int rgbw_white_access(uint16_t conn_handle, uint16_t attr_handle,
+                             struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    int rc;
 
-    ret = esp_ble_gatts_register_callback(gatts_event_handler);
-    if (ret) {
-        ESP_LOGE(TAG, "gatts register error, error code = %x", ret);
+    switch (ctxt->op) {
+        case BLE_GATT_ACCESS_OP_READ_CHR:
+            rc = os_mbuf_append(ctxt->om, &current_rgbw[3], sizeof(uint8_t));
+            ESP_LOGI(TAG, "White read: %d", current_rgbw[3]);
+            return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+
+        case BLE_GATT_ACCESS_OP_WRITE_CHR:
+            rc = ble_hs_mbuf_to_flat(ctxt->om, &current_rgbw[3], sizeof(uint8_t), NULL);
+            if (rc != 0) {
+                return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+            }
+            pwm_set_duty(PWM_CHANNEL_WARM_WHITE, current_rgbw[3]);
+            ESP_LOGI(TAG, "White set to: %d", current_rgbw[3]);
+            return 0;
+
+        default:
+            assert(0);
+            return BLE_ATT_ERR_UNLIKELY;
+    }
+}
+
+int ble_gap_event(struct ble_gap_event *event, void *arg)
+{
+    struct ble_gap_conn_desc desc;
+    int rc;
+
+    switch (event->type) {
+        case BLE_GAP_EVENT_CONNECT:
+            ESP_LOGI(TAG, "connection %s; status=%d",
+                     event->connect.status == 0 ? "established" : "failed",
+                     event->connect.status);
+            if (event->connect.status == 0) {
+                rc = ble_gap_conn_find(event->connect.conn_handle, &desc);
+                assert(rc == 0);
+                ESP_LOGI(TAG, "Connected to %02x:%02x:%02x:%02x:%02x:%02x",
+                         desc.peer_id_addr.val[0], desc.peer_id_addr.val[1],
+                         desc.peer_id_addr.val[2], desc.peer_id_addr.val[3],
+                         desc.peer_id_addr.val[4], desc.peer_id_addr.val[5]);
+            }
+            if (event->connect.status != 0) {
+                /* Connection failed; resume advertising */
+                ble_advertise();
+            }
+            return 0;
+
+        case BLE_GAP_EVENT_DISCONNECT:
+            ESP_LOGI(TAG, "disconnect; reason=%d", event->disconnect.reason);
+            /* Connection terminated; resume advertising */
+            ble_advertise();
+            return 0;
+
+        case BLE_GAP_EVENT_CONN_UPDATE:
+            ESP_LOGI(TAG, "connection updated; status=%d",
+                     event->conn_update.status);
+            rc = ble_gap_conn_find(event->conn_update.conn_handle, &desc);
+            assert(rc == 0);
+            ESP_LOGI(TAG, "Updated connection params: interval=%d, latency=%d, timeout=%d",
+                     desc.conn_itvl, desc.conn_latency, desc.supervision_timeout);
+            return 0;
+
+        case BLE_GAP_EVENT_ADV_COMPLETE:
+            ESP_LOGI(TAG, "advertise complete; reason=%d",
+                     event->adv_complete.reason);
+            ble_advertise();
+            return 0;
+
+        case BLE_GAP_EVENT_ENC_CHANGE:
+            ESP_LOGI(TAG, "encryption change event; status=%d",
+                     event->enc_change.status);
+            rc = ble_gap_conn_find(event->enc_change.conn_handle, &desc);
+            assert(rc == 0);
+            return 0;
+
+        case BLE_GAP_EVENT_NOTIFY_TX:
+            ESP_LOGI(TAG, "notify_tx event; conn_handle=%d attr_handle=%d "
+                          "status=%d is_indication=%d",
+                     event->notify_tx.conn_handle,
+                     event->notify_tx.attr_handle,
+                     event->notify_tx.status,
+                     event->notify_tx.indication);
+            return 0;
+
+        case BLE_GAP_EVENT_SUBSCRIBE:
+            ESP_LOGI(TAG, "subscribe event; conn_handle=%d attr_handle=%d "
+                          "reason=%d prevn=%d curn=%d previ=%d curi=%d",
+                     event->subscribe.conn_handle,
+                     event->subscribe.attr_handle,
+                     event->subscribe.reason,
+                     event->subscribe.prev_notify,
+                     event->subscribe.cur_notify,
+                     event->subscribe.prev_indicate,
+                     event->subscribe.cur_indicate);
+            return 0;
+
+        case BLE_GAP_EVENT_MTU:
+            ESP_LOGI(TAG, "mtu update event; conn_handle=%d cid=%d mtu=%d",
+                     event->mtu.conn_handle,
+                     event->mtu.channel_id,
+                     event->mtu.value);
+            return 0;
+
+        default:
+            return 0;
+    }
+}
+
+void ble_advertise(void)
+{
+    struct ble_gap_adv_params adv_params;
+    struct ble_hs_adv_fields fields;
+    const char *name;
+    int rc;
+
+    /* Configure advertisement parameters */
+    memset(&adv_params, 0, sizeof adv_params);
+    adv_params.conn_mode = BLE_GAP_CONN_MODE_UND;
+    adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN;
+    adv_params.itvl_min = BLE_GAP_ADV_FAST_INTERVAL1_MIN;
+    adv_params.itvl_max = BLE_GAP_ADV_FAST_INTERVAL1_MAX;
+
+    /* Configure advertisement data */
+    memset(&fields, 0, sizeof fields);
+
+    /* Advertise device name */
+    name = ble_svc_gap_device_name();
+    fields.name = (uint8_t *)name;
+    fields.name_len = strlen(name);
+    fields.name_is_complete = 1;
+
+    /* Advertise the service UUID */
+    fields.uuids16 = (ble_uuid16_t[]) {
+        BLE_UUID16_INIT(RGBW_SERVICE_UUID)
+    };
+    fields.num_uuids16 = 1;
+    fields.uuids16_is_complete = 1;
+
+    /* Set advertisement flags */
+    fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
+
+    rc = ble_gap_adv_set_fields(&fields);
+    if (rc != 0) {
+        ESP_LOGE(TAG, "error setting advertisement data; rc=%d", rc);
         return;
     }
 
-    ret = esp_ble_gap_register_callback(gap_event_handler);
-    if (ret) {
-        ESP_LOGE(TAG, "gap register error, error code = %x", ret);
+    /* Begin advertising */
+    rc = ble_gap_adv_start(own_addr_type, NULL, BLE_HS_FOREVER,
+                           &adv_params, ble_gap_event, NULL);
+    if (rc != 0) {
+        ESP_LOGE(TAG, "error enabling advertisement; rc=%d", rc);
         return;
     }
 
-    ret = esp_ble_gatts_app_register(PROFILE_A_APP_ID);
-    if (ret) {
-        ESP_LOGE(TAG, "gatts app register error, error code = %x", ret);
+    ESP_LOGI(TAG, "advertising started");
+}
+
+void ble_on_reset(int reason)
+{
+    ESP_LOGE(TAG, "resetting state; reason=%d", reason);
+}
+
+void ble_on_sync(void)
+{
+    int rc;
+
+    /* Make sure we have proper identity address set (public preferred) */
+    rc = ble_hs_util_ensure_addr(0);
+    assert(rc == 0);
+
+    /* Figure out address to use while advertising (no privacy for now) */
+    rc = ble_hs_id_infer_auto(0, &own_addr_type);
+    if (rc != 0) {
+        ESP_LOGE(TAG, "error determining address type; rc=%d", rc);
         return;
     }
 
-    // Set local MTU using the correct function
-    esp_err_t local_mtu_ret = esp_ble_gatt_set_local_mtu(500);
-    if (local_mtu_ret) {
-        ESP_LOGE(TAG, "set local MTU failed, error code = %x", local_mtu_ret);
+    /* Printing ADDR */
+    uint8_t addr_val[6] = {0};
+    rc = ble_hs_id_copy_addr(own_addr_type, addr_val, NULL);
+
+    ESP_LOGI(TAG, "Device Address: %02x:%02x:%02x:%02x:%02x:%02x",
+             addr_val[5], addr_val[4], addr_val[3],
+             addr_val[2], addr_val[1], addr_val[0]);
+
+    /* Begin advertising */
+    ESP_LOGI(TAG, "BLE sync completed");
+    ble_advertise();
+}
+
+void ble_host_task(void *param)
+{
+    ESP_LOGI(TAG, "BLE Host Task Started");
+    nimble_port_run(); // This function will return only when nimble_port_stop() is executed
+    nimble_port_freertos_deinit();
+}
+
+void ble_server_init(void)
+{
+    int rc;
+
+    /* Initialize the NimBLE host configuration */
+    ble_hs_cfg.reset_cb = ble_on_reset;
+    ble_hs_cfg.sync_cb = ble_on_sync;
+    ble_hs_cfg.gatts_register_cb = NULL;
+    ble_hs_cfg.store_status_cb = NULL;
+
+    /* Set device name */
+    rc = ble_svc_gap_device_name_set(DEVICE_NAME);
+    assert(rc == 0);
+
+    /* Initialize GATT services */
+    rc = ble_gatts_count_cfg(gatt_svc_def);
+    if (rc != 0) {
+        ESP_LOGE(TAG, "error counting GATT services; rc=%d", rc);
+        return;
     }
+
+    rc = ble_gatts_add_svcs(gatt_svc_def);
+    if (rc != 0) {
+        ESP_LOGE(TAG, "error adding GATT services; rc=%d", rc);
+        return;
+    }
+
+    /* Initialize and start the BLE host task */
+    nimble_port_freertos_init(ble_host_task);
+
+    ESP_LOGI(TAG, "BLE server initialized");
 }
