@@ -16,6 +16,7 @@
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 #include "pwm_control.h"
+#include "light_effects.h"
 
 static const char *TAG = "BLE_SERVER";
 
@@ -29,6 +30,12 @@ static int rgbw_green_access(uint16_t conn_handle, uint16_t attr_handle,
 static int rgbw_blue_access(uint16_t conn_handle, uint16_t attr_handle,
                             struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int rgbw_white_access(uint16_t conn_handle, uint16_t attr_handle,
+                             struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int rgbw_effect_access(uint16_t conn_handle, uint16_t attr_handle,
+                              struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int rgbw_brightness_access(uint16_t conn_handle, uint16_t attr_handle,
+                                  struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int rgbw_speed_access(uint16_t conn_handle, uint16_t attr_handle,
                              struct ble_gatt_access_ctxt *ctxt, void *arg);
 
 // GATT service definition
@@ -55,6 +62,21 @@ static const struct ble_gatt_svc_def gatt_svc_def[] = {
             {
                 .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_WARM_WHITE),
                 .access_cb = rgbw_white_access,
+                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+            },
+            {
+                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_EFFECT),
+                .access_cb = rgbw_effect_access,
+                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+            },
+            {
+                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_BRIGHTNESS),
+                .access_cb = rgbw_brightness_access,
+                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+            },
+            {
+                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_SPEED),
+                .access_cb = rgbw_speed_access,
                 .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
             },
             {
@@ -86,6 +108,9 @@ static int rgbw_red_access(uint16_t conn_handle, uint16_t attr_handle,
             if (rc != 0) {
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
+            // Enable manual mode when individual colors are set
+            light_effects_enable_manual_mode();
+            light_effects_set_effect(EFFECT_STATIC);
             pwm_set_duty(PWM_CHANNEL_RED, current_rgbw[0]);
             ESP_LOGI(TAG, "🔴 Red set to: %d", current_rgbw[0]);
             return 0;
@@ -112,6 +137,9 @@ static int rgbw_green_access(uint16_t conn_handle, uint16_t attr_handle,
             if (rc != 0) {
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
+            // Enable manual mode when individual colors are set
+            light_effects_enable_manual_mode();
+            light_effects_set_effect(EFFECT_STATIC);
             pwm_set_duty(PWM_CHANNEL_GREEN, current_rgbw[1]);
             ESP_LOGI(TAG, "🟢 Green set to: %d", current_rgbw[1]);
             return 0;
@@ -138,6 +166,9 @@ static int rgbw_blue_access(uint16_t conn_handle, uint16_t attr_handle,
             if (rc != 0) {
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
+            // Enable manual mode when individual colors are set
+            light_effects_enable_manual_mode();
+            light_effects_set_effect(EFFECT_STATIC);
             pwm_set_duty(PWM_CHANNEL_BLUE, current_rgbw[2]);
             ESP_LOGI(TAG, "🔵 Blue set to: %d", current_rgbw[2]);
             return 0;
@@ -164,8 +195,111 @@ static int rgbw_white_access(uint16_t conn_handle, uint16_t attr_handle,
             if (rc != 0) {
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
+            // Enable manual mode when individual colors are set
+            light_effects_enable_manual_mode();
+            light_effects_set_effect(EFFECT_STATIC);
             pwm_set_duty(PWM_CHANNEL_WARM_WHITE, current_rgbw[3]);
             ESP_LOGI(TAG, "⚪ Warm White set to: %d", current_rgbw[3]);
+            return 0;
+
+        default:
+            assert(0);
+            return BLE_ATT_ERR_UNLIKELY;
+    }
+}
+
+static int rgbw_effect_access(uint16_t conn_handle, uint16_t attr_handle,
+                              struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    int rc;
+    uint8_t effect_value;
+
+    switch (ctxt->op) {
+        case BLE_GATT_ACCESS_OP_READ_CHR:
+            effect_value = (uint8_t)light_effects_get_current_effect();
+            rc = os_mbuf_append(ctxt->om, &effect_value, sizeof(uint8_t));
+            ESP_LOGI(TAG, "Effect read: %d", effect_value);
+            return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+
+        case BLE_GATT_ACCESS_OP_WRITE_CHR:
+            rc = ble_hs_mbuf_to_flat(ctxt->om, &effect_value, sizeof(uint8_t), NULL);
+            if (rc != 0) {
+                return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+            }
+            
+            if (effect_value >= EFFECT_MAX) {
+                return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+            }
+            
+            // Set the effect
+            light_effects_set_effect((light_effect_t)effect_value);
+            
+            // If setting a non-static effect, disable manual mode
+            if (effect_value != EFFECT_STATIC && effect_value != EFFECT_OFF) {
+                light_effects_disable_manual_mode();
+            } else {
+                light_effects_enable_manual_mode();
+            }
+            
+            ESP_LOGI(TAG, "✨ Effect set to: %d", effect_value);
+            return 0;
+
+        default:
+            assert(0);
+            return BLE_ATT_ERR_UNLIKELY;
+    }
+}
+
+static int rgbw_brightness_access(uint16_t conn_handle, uint16_t attr_handle,
+                                  struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    int rc;
+    uint8_t brightness_value;
+
+    switch (ctxt->op) {
+        case BLE_GATT_ACCESS_OP_READ_CHR:
+            brightness_value = light_effects_get_config()->brightness;
+            rc = os_mbuf_append(ctxt->om, &brightness_value, sizeof(uint8_t));
+            ESP_LOGI(TAG, "Brightness read: %d", brightness_value);
+            return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+
+        case BLE_GATT_ACCESS_OP_WRITE_CHR:
+            rc = ble_hs_mbuf_to_flat(ctxt->om, &brightness_value, sizeof(uint8_t), NULL);
+            if (rc != 0) {
+                return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+            }
+            
+            light_effects_set_brightness(brightness_value);
+            ESP_LOGI(TAG, "🔆 Brightness set to: %d", brightness_value);
+            return 0;
+
+        default:
+            assert(0);
+            return BLE_ATT_ERR_UNLIKELY;
+    }
+}
+
+static int rgbw_speed_access(uint16_t conn_handle, uint16_t attr_handle,
+                             struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    int rc;
+    uint8_t speed_value;
+
+    switch (ctxt->op) {
+        case BLE_GATT_ACCESS_OP_READ_CHR:
+            speed_value = light_effects_get_config()->speed;
+            rc = os_mbuf_append(ctxt->om, &speed_value, sizeof(uint8_t));
+            ESP_LOGI(TAG, "Speed read: %d", speed_value);
+            return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+
+        case BLE_GATT_ACCESS_OP_WRITE_CHR:
+            rc = ble_hs_mbuf_to_flat(ctxt->om, &speed_value, sizeof(uint8_t), NULL);
+            if (rc != 0) {
+                return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+            }
+            
+            light_effects_set_speed(speed_value);
+            ESP_LOGI(TAG, "⚡ Speed set to: %d", speed_value);
             return 0;
 
         default:
@@ -191,6 +325,9 @@ int ble_gap_event(struct ble_gap_event *event, void *arg)
                          desc.peer_id_addr.val[0], desc.peer_id_addr.val[1],
                          desc.peer_id_addr.val[2], desc.peer_id_addr.val[3],
                          desc.peer_id_addr.val[4], desc.peer_id_addr.val[5]);
+                
+                // Notify effects system about BLE connection
+                light_effects_set_ble_connected(true);
             }
             if (event->connect.status != 0) {
                 /* Connection failed; resume advertising */
@@ -200,6 +337,10 @@ int ble_gap_event(struct ble_gap_event *event, void *arg)
 
         case BLE_GAP_EVENT_DISCONNECT:
             ESP_LOGI(TAG, "🔌 disconnect; reason=%d", event->disconnect.reason);
+            
+            // Notify effects system about BLE disconnection
+            light_effects_set_ble_connected(false);
+            
             /* Connection terminated; resume advertising */
             ble_advertise();
             return 0;

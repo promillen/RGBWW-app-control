@@ -22,6 +22,8 @@
             --text-dim: #7d8590;
             --border-color: #21262d;
             --glow-color: #00ff4150;
+            --lm3414-color: #ff6b35;
+            --al8860-color: #4ecdc4;
         }
 
         body {
@@ -106,6 +108,33 @@
         .device-info::before {
             content: '> ';
             color: var(--primary-green);
+        }
+
+        .chip-info {
+            background: var(--border-color);
+            border: 1px solid;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: center;
+            font-family: 'Orbitron', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: none;
+        }
+
+        .chip-info.lm3414 {
+            border-color: var(--lm3414-color);
+            color: var(--lm3414-color);
+            background: rgba(255, 107, 53, 0.1);
+        }
+
+        .chip-info.al8860 {
+            border-color: var(--al8860-color);
+            color: var(--al8860-color);
+            background: rgba(78, 205, 196, 0.1);
         }
 
         .status {
@@ -285,6 +314,16 @@
             box-shadow: 0 0 10px #ffffff50;
         }
 
+        .slider.brightness::-webkit-slider-thumb {
+            background: #ffff00;
+            box-shadow: 0 0 10px #ffff0050;
+        }
+
+        .slider.speed::-webkit-slider-thumb {
+            background: #ff8000;
+            box-shadow: 0 0 10px #ff800050;
+        }
+
         .value-display {
             position: absolute;
             top: -5px;
@@ -354,8 +393,9 @@
 
         .effect-buttons {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: 10px;
+            margin-bottom: 20px;
         }
 
         .effect-btn {
@@ -383,6 +423,44 @@
         .effect-btn:disabled {
             opacity: 0.3;
             cursor: not-allowed;
+        }
+
+        .effect-btn.active {
+            background: var(--primary-green);
+            color: var(--darker-bg);
+            border-color: var(--primary-green);
+        }
+
+        .effect-btn.lm3414-only {
+            border-color: var(--lm3414-color);
+            color: var(--lm3414-color);
+        }
+
+        .effect-btn.lm3414-only:hover:not(:disabled) {
+            background: var(--lm3414-color);
+            color: var(--darker-bg);
+        }
+
+        .effect-btn.lm3414-only.active {
+            background: var(--lm3414-color);
+            color: var(--darker-bg);
+            border-color: var(--lm3414-color);
+        }
+
+        .effect-btn.al8860-only {
+            border-color: var(--al8860-color);
+            color: var(--al8860-color);
+        }
+
+        .effect-btn.al8860-only:hover:not(:disabled) {
+            background: var(--al8860-color);
+            color: var(--darker-bg);
+        }
+
+        .effect-btn.al8860-only.active {
+            background: var(--al8860-color);
+            color: var(--darker-bg);
+            border-color: var(--al8860-color);
         }
 
         .footer {
@@ -465,6 +543,11 @@
                 TARGET DEVICE: <span id="deviceName">-</span>
             </div>
 
+            <div id="chipInfo" class="chip-info">
+                LED DRIVER: <span id="chipName">-</span>
+                <br><span id="chipSpecs">-</span>
+            </div>
+
             <div id="status" class="status disconnected">
                 <div class="scan-animation" id="scanAnimation"></div>
                 SYSTEM OFFLINE
@@ -479,6 +562,47 @@
             </button>
 
             <div id="controls" class="controls">
+                <div class="section-title">LIGHT EFFECTS</div>
+                <div class="effect-buttons" id="effectButtons">
+                    <!-- Common effects -->
+                    <button class="effect-btn" data-effect="0">⚫ OFF</button>
+                    <button class="effect-btn" data-effect="1">🔴 STATIC</button>
+                    <button class="effect-btn" data-effect="2">🌈 SMOOTH FADE</button>
+                    <button class="effect-btn" data-effect="3">🎨 RGB CYCLE</button>
+                    <button class="effect-btn" data-effect="4">💨 BREATHING</button>
+                    <button class="effect-btn" data-effect="5">✨ TWINKLE</button>
+                    <button class="effect-btn" data-effect="6">⚡ LIGHTNING</button>
+                    <button class="effect-btn" data-effect="7">🕯️ CANDLE</button>
+                    
+                    <!-- AL8860 specific effects -->
+                    <button class="effect-btn al8860-only" data-effect="8" style="display: none;">🌊 PULSE WAVE</button>
+                    <button class="effect-btn al8860-only" data-effect="9" style="display: none;">🔄 SOFT TRANSITION</button>
+                    
+                    <!-- LM3414 specific effects -->
+                    <button class="effect-btn lm3414-only" data-effect="8" style="display: none;">🎯 PRECISION FADE</button>
+                    <button class="effect-btn lm3414-only" data-effect="9" style="display: none;">⚡ FAST STROBE</button>
+                </div>
+
+                <div class="control-group">
+                    <label for="brightnessSlider">☀️ BRIGHTNESS</label>
+                    <div class="slider-container">
+                        <input type="range" id="brightnessSlider" class="slider brightness" min="0" max="255" value="128">
+                        <div class="value-display" id="brightnessValue">128</div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label for="speedSlider">⚡ EFFECT SPEED</label>
+                    <div class="slider-container">
+                        <input type="range" id="speedSlider" class="slider speed" min="0" max="255" value="50">
+                        <div class="value-display" id="speedValue">50</div>
+                    </div>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <div class="section-title">MANUAL COLOR CONTROL</div>
+
                 <div class="control-group">
                     <label for="redSlider">🔴 RED CHANNEL</label>
                     <div class="slider-container">
@@ -512,18 +636,6 @@
                 </div>
 
                 <div class="color-preview" id="colorPreview"></div>
-
-                <div class="section-divider"></div>
-                
-                <div class="section-title">LIGHT EFFECTS</div>
-                <div class="effect-buttons">
-                    <button class="effect-btn" onclick="effectOff()">SYSTEM OFF</button>
-                    <button class="effect-btn" onclick="effectSolid()">SOLID MODE</button>
-                    <button class="effect-btn" onclick="effectFade()" disabled>FADE CYCLE</button>
-                    <button class="effect-btn" onclick="effectStrobe()" disabled>STROBE FX</button>
-                    <button class="effect-btn" onclick="effectRainbow()" disabled>RAINBOW</button>
-                    <button class="effect-btn" onclick="effectPulse()" disabled>PULSE WAVE</button>
-                </div>
             </div>
         </div>
     </div>
@@ -547,9 +659,11 @@
                 this.isConnected = false;
                 this.targetDeviceName = null;
                 this.updateThrottle = null;
-                this.autoConnect = false;
                 this.retryCount = 0;
                 this.maxRetries = 3;
+                this.currentEffect = 2; // Default to smooth fade
+                this.chipType = null; // Will be detected: 'LM3414' or 'AL8860'
+                this.maxDuty = 255; // Will be updated based on chip detection
                 
                 this.initializeUI();
                 this.parseURLParams();
@@ -590,12 +704,99 @@
                     document.getElementById('autoConnectBtn').style.display = 'block';
                     
                     if (autoConnect === 'true') {
-                        this.autoConnect = true;
                         this.debug('Auto-connect enabled');
                         setTimeout(() => {
                             this.connectToSpecificDevice();
                         }, 1000);
                     }
+                }
+            }
+
+            detectChipType() {
+                // Detect chip type based on device name patterns or characteristics
+                const deviceName = this.device.name;
+                
+                // Method 1: Detect by device name pattern
+                if (deviceName && deviceName.includes('_OLED')) {
+                    this.chipType = 'AL8860';
+                    this.maxDuty = 255; // 8-bit
+                } else if (deviceName && deviceName.includes('_NO_OLED')) {
+                    this.chipType = 'LM3414';
+                    this.maxDuty = 4095; // 12-bit
+                } else {
+                    // Method 2: Try to read a test characteristic value to determine resolution
+                    // For now, default to LM3414 for unknown devices
+                    this.chipType = 'LM3414';
+                    this.maxDuty = 4095;
+                }
+
+                this.debug(`Chip detected: ${this.chipType} (Max duty: ${this.maxDuty})`);
+                this.updateChipInfo();
+                this.updateSliderRanges();
+                this.showChipSpecificEffects();
+            }
+
+            updateChipInfo() {
+                const chipInfo = document.getElementById('chipInfo');
+                const chipName = document.getElementById('chipName');
+                const chipSpecs = document.getElementById('chipSpecs');
+                
+                if (this.chipType === 'AL8860') {
+                    chipInfo.className = 'chip-info al8860';
+                    chipName.textContent = 'AL8860';
+                    chipSpecs.textContent = '40V 1.5A BUCK LED DRIVER • 8-BIT RESOLUTION';
+                } else if (this.chipType === 'LM3414') {
+                    chipInfo.className = 'chip-info lm3414';
+                    chipName.textContent = 'LM3414';
+                    chipSpecs.textContent = '42V 1A LED DRIVER • 12-BIT RESOLUTION';
+                }
+                
+                chipInfo.style.display = 'block';
+            }
+
+            updateSliderRanges() {
+                // Update slider max values based on chip resolution
+                const colorSliders = ['redSlider', 'greenSlider', 'blueSlider', 'whiteSlider'];
+                const brightnessSlider = document.getElementById('brightnessSlider');
+                
+                colorSliders.forEach(sliderId => {
+                    const slider = document.getElementById(sliderId);
+                    slider.max = this.maxDuty;
+                    
+                    // Scale current value to new range
+                    const currentPercent = slider.value / 255;
+                    slider.value = Math.round(currentPercent * this.maxDuty);
+                    
+                    const valueDisplay = document.getElementById(sliderId.replace('Slider', 'Value'));
+                    valueDisplay.textContent = slider.value;
+                });
+
+                // Update brightness slider
+                brightnessSlider.max = this.maxDuty;
+                const brightnessPercent = brightnessSlider.value / 255;
+                brightnessSlider.value = Math.round(brightnessPercent * this.maxDuty);
+                document.getElementById('brightnessValue').textContent = brightnessSlider.value;
+
+                this.debug(`Sliders updated for ${this.chipType} - Range: 0-${this.maxDuty}`);
+            }
+
+            showChipSpecificEffects() {
+                // Hide all chip-specific effects first
+                document.querySelectorAll('.al8860-only, .lm3414-only').forEach(btn => {
+                    btn.style.display = 'none';
+                });
+
+                // Show effects specific to detected chip
+                if (this.chipType === 'AL8860') {
+                    document.querySelectorAll('.al8860-only').forEach(btn => {
+                        btn.style.display = 'block';
+                    });
+                    this.debug('AL8860 specific effects enabled: Pulse Wave, Soft Transition');
+                } else if (this.chipType === 'LM3414') {
+                    document.querySelectorAll('.lm3414-only').forEach(btn => {
+                        btn.style.display = 'block';
+                    });
+                    this.debug('LM3414 specific effects enabled: Precision Fade, Fast Strobe');
                 }
             }
 
@@ -606,7 +807,31 @@
                 connectBtn.addEventListener('click', () => this.connectWithChoice());
                 autoConnectBtn.addEventListener('click', () => this.connectToSpecificDevice());
                 
-                // Setup sliders
+                // Setup effect buttons
+                document.querySelectorAll('.effect-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const effect = parseInt(e.target.dataset.effect);
+                        this.setEffect(effect);
+                    });
+                });
+                
+                // Setup brightness slider
+                const brightnessSlider = document.getElementById('brightnessSlider');
+                const brightnessValue = document.getElementById('brightnessValue');
+                brightnessSlider.addEventListener('input', (e) => {
+                    brightnessValue.textContent = e.target.value;
+                    this.throttledEffectUpdate('brightness', parseInt(e.target.value));
+                });
+                
+                // Setup speed slider
+                const speedSlider = document.getElementById('speedSlider');
+                const speedValue = document.getElementById('speedValue');
+                speedSlider.addEventListener('input', (e) => {
+                    speedValue.textContent = e.target.value;
+                    this.throttledEffectUpdate('speed', parseInt(e.target.value));
+                });
+                
+                // Setup color sliders
                 ['red', 'green', 'blue', 'white'].forEach(color => {
                     const slider = document.getElementById(`${color}Slider`);
                     const valueDisplay = document.getElementById(`${color}Value`);
@@ -619,6 +844,7 @@
                 });
 
                 this.updateColorPreview();
+                this.updateEffectButtons();
             }
 
             throttledUpdate() {
@@ -630,12 +856,37 @@
                 }, 150);
             }
 
+            throttledEffectUpdate(type, value) {
+                if (this.updateThrottle) {
+                    clearTimeout(this.updateThrottle);
+                }
+                this.updateThrottle = setTimeout(() => {
+                    if (type === 'brightness') {
+                        this.setBrightness(value);
+                    } else if (type === 'speed') {
+                        this.setSpeed(value);
+                    }
+                }, 150);
+            }
+
             updateColorPreview() {
-                const r = parseInt(document.getElementById('redSlider').value);
-                const g = parseInt(document.getElementById('greenSlider').value);
-                const b = parseInt(document.getElementById('blueSlider').value);
+                const maxDuty = this.maxDuty || 255;
+                const r = Math.round((parseInt(document.getElementById('redSlider').value) / maxDuty) * 255);
+                const g = Math.round((parseInt(document.getElementById('greenSlider').value) / maxDuty) * 255);
+                const b = Math.round((parseInt(document.getElementById('blueSlider').value) / maxDuty) * 255);
                 
                 document.getElementById('colorPreview').style.background = `rgb(${r}, ${g}, ${b})`;
+            }
+
+            updateEffectButtons() {
+                document.querySelectorAll('.effect-btn').forEach(btn => {
+                    const effect = parseInt(btn.dataset.effect);
+                    if (effect === this.currentEffect) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
             }
 
             async connectToSpecificDevice() {
@@ -718,6 +969,9 @@
             async completeConnection() {
                 this.debug(`Device selected: ${this.device.name}`);
 
+                // Detect chip type before proceeding
+                this.detectChipType();
+
                 this.updateStatus('ESTABLISHING LINK', 'connecting');
 
                 this.device.addEventListener('gattserverdisconnected', () => {
@@ -726,6 +980,7 @@
                     this.updateStatus('CONNECTION LOST', 'disconnected');
                     this.updateConnectButtons();
                     document.getElementById('controls').classList.remove('active');
+                    document.getElementById('chipInfo').style.display = 'none';
                 });
 
                 this.server = await this.device.gatt.connect();
@@ -736,10 +991,14 @@
                 const service = await this.server.getPrimaryService('000000ff-0000-1000-8000-00805f9b34fb');
                 this.debug('Service acquired');
                 
+                // Get all characteristics
                 this.characteristics.red = await service.getCharacteristic('0000ff01-0000-1000-8000-00805f9b34fb');
                 this.characteristics.green = await service.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
                 this.characteristics.blue = await service.getCharacteristic('0000ff03-0000-1000-8000-00805f9b34fb');
                 this.characteristics.warmWhite = await service.getCharacteristic('0000ff04-0000-1000-8000-00805f9b34fb');
+                this.characteristics.effect = await service.getCharacteristic('0000ff05-0000-1000-8000-00805f9b34fb');
+                this.characteristics.brightness = await service.getCharacteristic('0000ff06-0000-1000-8000-00805f9b34fb');
+                this.characteristics.speed = await service.getCharacteristic('0000ff07-0000-1000-8000-00805f9b34fb');
                 
                 this.debug('All characteristics loaded');
 
@@ -749,7 +1008,8 @@
                 this.updateConnectButtons();
                 document.getElementById('controls').classList.add('active');
                 
-                await this.updateLED();
+                // Set initial effect
+                await this.setEffect(this.currentEffect);
             }
 
             showScanAnimation(show) {
@@ -784,9 +1044,11 @@
                 }
                 
                 this.isConnected = false;
+                this.chipType = null;
                 this.updateStatus('SYSTEM OFFLINE', 'disconnected');
                 this.updateConnectButtons();
                 document.getElementById('controls').classList.remove('active');
+                document.getElementById('chipInfo').style.display = 'none';
                 this.debug('Disconnected');
             }
 
@@ -794,6 +1056,79 @@
                 const status = document.getElementById('status');
                 status.textContent = message;
                 status.className = `status ${type}`;
+            }
+
+            async setEffect(effectId) {
+                if (!this.isConnected) return;
+
+                try {
+                    this.debug(`Setting effect to: ${effectId}`);
+                    await this.characteristics.effect.writeValue(new Uint8Array([effectId]));
+                    this.currentEffect = effectId;
+                    this.updateEffectButtons();
+                } catch (error) {
+                    this.error('Failed to set effect', error);
+                }
+            }
+
+            async setBrightness(brightness) {
+                if (!this.isConnected) return;
+
+                try {
+                    // Convert from current range to device range if needed
+                    let deviceValue = brightness;
+                    if (this.chipType === 'LM3414' && this.maxDuty === 4095) {
+                        // Convert 12-bit value to 8-bit for BLE characteristic
+                        deviceValue = Math.round((brightness / 4095) * 255);
+                    }
+                    
+                    this.debug(`Setting brightness to: ${deviceValue} (from ${brightness})`);
+                    await this.characteristics.brightness.writeValue(new Uint8Array([deviceValue]));
+                } catch (error) {
+                    this.error('Failed to set brightness', error);
+                }
+            }
+
+            async setSpeed(speed) {
+                if (!this.isConnected) return;
+
+                try {
+                    this.debug(`Setting speed to: ${speed}`);
+                    await this.characteristics.speed.writeValue(new Uint8Array([speed]));
+                } catch (error) {
+                    this.error('Failed to set speed', error);
+                }
+            }
+
+            async setAllColors(r, g, b, w) {
+                if (!this.isConnected) return;
+
+                try {
+                    // Convert values to 8-bit for BLE characteristics if using LM3414
+                    let deviceR = r, deviceG = g, deviceB = b, deviceW = w;
+                    
+                    if (this.chipType === 'LM3414' && this.maxDuty === 4095) {
+                        deviceR = Math.round((r / 4095) * 255);
+                        deviceG = Math.round((g / 4095) * 255);
+                        deviceB = Math.round((b / 4095) * 255);
+                        deviceW = Math.round((w / 4095) * 255);
+                    }
+
+                    await this.characteristics.red.writeValue(new Uint8Array([deviceR]));
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                    
+                    await this.characteristics.green.writeValue(new Uint8Array([deviceG]));
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                    
+                    await this.characteristics.blue.writeValue(new Uint8Array([deviceB]));
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                    
+                    await this.characteristics.warmWhite.writeValue(new Uint8Array([deviceW]));
+                    
+                    this.debug(`Colors sent: R=${deviceR}, G=${deviceG}, B=${deviceB}, W=${deviceW} (from ${r}, ${g}, ${b}, ${w})`);
+                } catch (error) {
+                    this.error('Failed to update colors', error);
+                }
             }
 
             async updateLED() {
@@ -805,18 +1140,15 @@
                     const b = parseInt(document.getElementById('blueSlider').value);
                     const w = parseInt(document.getElementById('whiteSlider').value);
 
-                    this.debug(`Updating RGBW: ${r}, ${g}, ${b}, ${w}`);
+                    this.debug(`Updating RGBW: ${r}, ${g}, ${b}, ${w} (${this.chipType})`);
 
-                    await this.characteristics.red.writeValue(new Uint8Array([r]));
-                    await new Promise(resolve => setTimeout(resolve, 10));
-                    
-                    await this.characteristics.green.writeValue(new Uint8Array([g]));
-                    await new Promise(resolve => setTimeout(resolve, 10));
-                    
-                    await this.characteristics.blue.writeValue(new Uint8Array([b]));
-                    await new Promise(resolve => setTimeout(resolve, 10));
-                    
-                    await this.characteristics.warmWhite.writeValue(new Uint8Array([w]));
+                    // Set static effect when manually adjusting colors
+                    if (this.currentEffect !== 1) {
+                        this.currentEffect = 1;
+                        this.updateEffectButtons();
+                    }
+
+                    await this.setAllColors(r, g, b, w);
 
                 } catch (error) {
                     this.error('Failed to update LED', error);
@@ -833,49 +1165,6 @@
                     }
                 }
             }
-        }
-
-        // Effect functions
-        function effectOff() {
-            const controller = window.aliveLightController;
-            if (!controller.isConnected) return;
-
-            document.getElementById('redSlider').value = 0;
-            document.getElementById('greenSlider').value = 0;
-            document.getElementById('blueSlider').value = 0;
-            document.getElementById('whiteSlider').value = 0;
-            
-            document.getElementById('redValue').textContent = '0';
-            document.getElementById('greenValue').textContent = '0';
-            document.getElementById('blueValue').textContent = '0';
-            document.getElementById('whiteValue').textContent = '0';
-            
-            controller.updateColorPreview();
-            controller.updateLED();
-        }
-
-        function effectSolid() {
-            const controller = window.aliveLightController;
-            if (!controller.isConnected) return;
-            
-            controller.updateLED();
-        }
-
-        // Placeholder functions for future effects
-        function effectFade() {
-            console.log('[ALIVE LIGHT] Fade effect - coming soon!');
-        }
-
-        function effectStrobe() {
-            console.log('[ALIVE LIGHT] Strobe effect - coming soon!');
-        }
-
-        function effectRainbow() {
-            console.log('[ALIVE LIGHT] Rainbow effect - coming soon!');
-        }
-
-        function effectPulse() {
-            console.log('[ALIVE LIGHT] Pulse effect - coming soon!');
         }
 
         // Initialize the controller

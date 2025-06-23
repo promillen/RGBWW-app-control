@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "main.c" "ble_server.c" "pwm_control.c"
+    SRCS "main.c" "ble_server.c" "pwm_control.c" "light_effects.c"
     INCLUDE_DIRS "."
     REQUIRES 
         nvs_flash 

@@ -11,6 +11,9 @@
 #define RGBW_CHAR_UUID_GREEN        0xFF02
 #define RGBW_CHAR_UUID_BLUE         0xFF03
 #define RGBW_CHAR_UUID_WARM_WHITE   0xFF04
+#define RGBW_CHAR_UUID_EFFECT       0xFF05  // New effect control characteristic
+#define RGBW_CHAR_UUID_BRIGHTNESS   0xFF06  // Brightness control
+#define RGBW_CHAR_UUID_SPEED        0xFF07  // Effect speed control
 
 // Device name - Change this for each device!
 // Should match the QR code: RGBW_LED_001, RGBW_LED_002, etc.
