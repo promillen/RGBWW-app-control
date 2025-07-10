@@ -1,0 +1,78 @@
+menu "RGBW LED Controller Configuration"
+
+    choice BOARD_TYPE
+        prompt "Board Type"
+        default BOARD_ESP32C3_NO_OLED
+        help
+            Select the board type to configure GPIO pins and LED driver optimization.
+
+        config BOARD_ESP32C3_OLED
+            bool "ESP32-C3 with OLED (AL8860 driver)"
+            help
+                ESP32-C3 board with OLED display, optimized for AL8860 LED driver.
+                Uses 8-bit PWM resolution and lower switching frequency.
+
+        config BOARD_ESP32C3_NO_OLED
+            bool "ESP32-C3 without OLED (LM3414 driver)"
+            help
+                ESP32-C3 board without OLED display, optimized for LM3414 LED driver.
+                Uses 12-bit PWM resolution and higher switching frequency.
+
+    endchoice
+
+    config DEVICE_NAME
+        string "BLE Device Name"
+        default "RGBW_LED_001"
+        help
+            The BLE device name that will be advertised. Change this for each device.
+            Examples: RGBW_LED_001, RGBW_LED_002, etc.
+
+    menu "LED Driver Configuration"
+
+        config LED_MAX_CURRENT_MA
+            int "Maximum LED Current (mA)"
+            default 1000 if BOARD_ESP32C3_NO_OLED
+            default 1500 if BOARD_ESP32C3_OLED
+            range 100 2000
+            help
+                Maximum current per LED channel in milliamps.
+
+        config PWM_FREQUENCY_HZ
+            int "PWM Frequency (Hz)"
+            default 5000 if BOARD_ESP32C3_NO_OLED
+            default 1000 if BOARD_ESP32C3_OLED
+            range 100 10000
+            help
+                PWM switching frequency. Higher frequency for LM3414, lower for AL8860.
+
+    endmenu
+
+    menu "GPIO Pin Configuration"
+
+        config GPIO_RED
+            int "Red LED GPIO"
+            default 5 if BOARD_ESP32C3_NO_OLED
+            default 10 if BOARD_ESP32C3_OLED
+            range 0 21
+
+        config GPIO_GREEN
+            int "Green LED GPIO"
+            default 6 if BOARD_ESP32C3_NO_OLED
+            default 9 if BOARD_ESP32C3_OLED
+            range 0 21
+
+        config GPIO_BLUE
+            int "Blue LED GPIO"
+            default 7 if BOARD_ESP32C3_NO_OLED
+            default 8 if BOARD_ESP32C3_OLED
+            range 0 21
+
+        config GPIO_WARM_WHITE
+            int "Warm White LED GPIO"
+            default 8 if BOARD_ESP32C3_NO_OLED
+            default 7 if BOARD_ESP32C3_OLED
+            range 0 21
+
+    endmenu
+
+endmenu

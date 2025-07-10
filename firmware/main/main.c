@@ -10,24 +10,9 @@
 #include "nvs_flash.h"
 #include "pwm_control.h"
 #include "light_effects.h"
+#include "sdkconfig.h"
 
 static const char *TAG = "RGBW_MAIN";
-
-#ifdef ESP32_C3_OLED
-    #define LED_DRIVER_TYPE "AL8860"
-    #define MAX_CURRENT_MA 1500
-    #define SWITCHING_FREQ_DEFAULT 250  // AL8860 operates at lower freq (hysteretic)
-    #define CURRENT_ACCURACY_PERCENT 5  // AL8860 typical accuracy
-    #define DIMMING_RESOLUTION 256      // 8-bit resolution for AL8860
-    #define SOFT_START_TIME_MS 1        // AL8860 has adjustable soft-start
-#else
-    #define LED_DRIVER_TYPE "LM3414"
-    #define MAX_CURRENT_MA 1000
-    #define SWITCHING_FREQ_DEFAULT 500  // LM3414 can go up to 1MHz
-    #define CURRENT_ACCURACY_PERCENT 3  // LM3414 higher accuracy
-    #define DIMMING_RESOLUTION 4096     // 12-bit resolution for LM3414
-    #define SOFT_START_TIME_MS 0.1      // LM3414 has fast built-in soft-start
-#endif
 
 void app_main(void) {
     esp_err_t ret;
@@ -42,6 +27,16 @@ void app_main(void) {
 
     ESP_LOGI(TAG, "=== RGBW LED Controller ===");
     ESP_LOGI(TAG, "Board: %s", BOARD_TYPE);
+    ESP_LOGI(TAG, "LED Driver: %s", LED_DRIVER_TYPE);
+    ESP_LOGI(TAG, "Max Current: %dmA", CONFIG_LED_MAX_CURRENT_MA);
+    ESP_LOGI(TAG, "PWM Frequency: %dHz", CONFIG_PWM_FREQUENCY_HZ);
+    
+    // Log GPIO configuration
+    ESP_LOGI(TAG, "GPIO Configuration:");
+    ESP_LOGI(TAG, "  Red: GPIO %d", CONFIG_GPIO_RED);
+    ESP_LOGI(TAG, "  Green: GPIO %d", CONFIG_GPIO_GREEN);
+    ESP_LOGI(TAG, "  Blue: GPIO %d", CONFIG_GPIO_BLUE);
+    ESP_LOGI(TAG, "  Warm White: GPIO %d", CONFIG_GPIO_WARM_WHITE);
 
     /* Initialize PWM for LED control */
     pwm_init();
@@ -63,7 +58,15 @@ void app_main(void) {
     ble_server_init();
 
     ESP_LOGI(TAG, "RGBW LED Controller started");
-    ESP_LOGI(TAG, "BLE advertising as: %s", DEVICE_NAME);
+    ESP_LOGI(TAG, "BLE advertising as: %s", CONFIG_DEVICE_NAME);
+    
+    // Board-specific startup messages
+#ifdef CONFIG_BOARD_ESP32C3_OLED
+    ESP_LOGI(TAG, "AL8860 driver optimizations active (8-bit PWM, %dHz)", CONFIG_PWM_FREQUENCY_HZ);
+#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
+    ESP_LOGI(TAG, "LM3414 driver optimizations active (12-bit PWM, %dHz)", CONFIG_PWM_FREQUENCY_HZ);
+#endif
+    
     ESP_LOGI(TAG, "Light effects running - will switch to smooth fade when no device connected");
     ESP_LOGI(TAG, "Ready for connections!");
 }

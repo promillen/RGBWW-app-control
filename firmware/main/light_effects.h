@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "sdkconfig.h"
 
 // Effect types optimized for each driver
 typedef enum {
@@ -14,11 +15,13 @@ typedef enum {
     EFFECT_TWINKLE_PULSE,    // Subtle RGB flicker on low brightness
     EFFECT_LIGHTNING_FLASH,  // Cool white lightning flashes
     EFFECT_CANDLE_FLICKER,   // Warm candle flame effect
-#ifdef ESP32_C3_OLED
+    
+    // Board-specific effects based on Kconfig
+#ifdef CONFIG_BOARD_ESP32C3_OLED
     // AL8860 specific effects (hysteretic control optimized)
     EFFECT_PULSE_WAVE,       // Optimized for AL8860's natural hysteretic behavior
     EFFECT_SOFT_TRANSITION,  // Leverages AL8860's soft-start capability
-#else
+#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
     // LM3414 specific effects (high precision optimized)
     EFFECT_PRECISION_FADE,   // High-resolution fading for LM3414
     EFFECT_FAST_STROBE,      // High-frequency effects for LM3414

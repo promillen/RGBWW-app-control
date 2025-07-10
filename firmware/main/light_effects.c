@@ -4,6 +4,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/timers.h"
+#include "sdkconfig.h"
 #include <math.h>
 #include <stdlib.h>
 
@@ -27,17 +28,19 @@ static uint32_t effect_counter = 0;
 static float hue = 0.0f;
 static uint8_t rgb_cycle_state = 0;  // For RGB cycle effect
 
-// Driver-specific timing constants
-#ifdef ESP32_C3_OLED
+// Driver-specific timing constants based on Kconfig
+#ifdef CONFIG_BOARD_ESP32C3_OLED
     // AL8860 optimized timings (slower, more stable)
     #define EFFECT_UPDATE_INTERVAL_MS 50
     #define FAST_EFFECT_DIVISOR 8
     #define SMOOTH_FADE_SPEED_MULT 0.001f
-#else
+#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
     // LM3414 optimized timings (faster, more precise)
     #define EFFECT_UPDATE_INTERVAL_MS 20
     #define FAST_EFFECT_DIVISOR 4
     #define SMOOTH_FADE_SPEED_MULT 0.002f
+#else
+    #error "No board configuration selected. Please run 'idf.py menuconfig'"
 #endif
 
 // Helper function to convert HSV to RGB
@@ -219,7 +222,8 @@ static void effect_candle_flicker(void) {
     pwm_set_rgbw(r, g, b, w);
 }
 
-#ifdef ESP32_C3_OLED
+// Board-specific effects based on Kconfig
+#ifdef CONFIG_BOARD_ESP32C3_OLED
 // AL8860 specific effects
 
 // Pulse wave effect - optimized for AL8860's hysteretic control
@@ -290,7 +294,7 @@ static void effect_soft_transition(void) {
     pwm_set_rgbw(current_r, current_g, current_b, current_w);
 }
 
-#else
+#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
 // LM3414 specific effects
 
 // Precision fade effect - high-resolution fading for LM3414
@@ -326,7 +330,7 @@ static void effect_fast_strobe(void) {
     static bool strobe_state = false;
     static uint32_t last_strobe = 0;
     
-    // Fast strobe timing taking advantage of LM3414's 1MHz capability
+    // Fast strobe timing taking advantage of LM3414's capabilities
     uint32_t strobe_interval = (255 - config.speed) / FAST_EFFECT_DIVISOR + 1;
     
     if (effect_counter - last_strobe >= strobe_interval) {
@@ -353,13 +357,7 @@ static void effect_fast_strobe(void) {
 
 // Main effects task
 static void effects_task(void *pvParameters) {
-    ESP_LOGI(TAG, "Effects task started for %s", 
-#ifdef ESP32_C3_OLED
-        "AL8860 (8-bit)"
-#else
-        "LM3414 (12-bit)"
-#endif
-    );
+    ESP_LOGI(TAG, "Effects task started for %s", LED_DRIVER_TYPE);
     
     while (1) {
         if (!config.enabled || manual_mode) {
@@ -412,7 +410,7 @@ static void effects_task(void *pvParameters) {
                 effect_candle_flicker();
                 break;
 
-#ifdef ESP32_C3_OLED
+#ifdef CONFIG_BOARD_ESP32C3_OLED
             case EFFECT_PULSE_WAVE:
                 effect_pulse_wave();
                 break;
@@ -420,7 +418,7 @@ static void effects_task(void *pvParameters) {
             case EFFECT_SOFT_TRANSITION:
                 effect_soft_transition();
                 break;
-#else
+#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
             case EFFECT_PRECISION_FADE:
                 effect_precision_fade();
                 break;
@@ -455,8 +453,10 @@ void light_effects_init(void) {
     config.w = scale_to_driver_resolution(config.w);
     config.brightness = scale_to_driver_resolution(config.brightness);
     
-    ESP_LOGI(TAG, "Driver resolution: %d-bit (max duty: %lu)", 
-             (config.max_duty == 255) ? 8 : 12, (unsigned long)config.max_duty);
+    ESP_LOGI(TAG, "Driver: %s, Resolution: %d-bit (max duty: %lu)", 
+             LED_DRIVER_TYPE,
+             (config.max_duty == 255) ? 8 : 12, 
+             (unsigned long)config.max_duty);
     
     // Set default effect when no BLE connection
     if (!ble_connected) {
