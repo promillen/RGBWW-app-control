@@ -4,6 +4,7 @@
 #include "host/ble_hs.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
+#include "sdkconfig.h"
 
 // Service and Characteristic UUIDs
 #define RGBW_SERVICE_UUID           0x00FF
@@ -11,15 +12,12 @@
 #define RGBW_CHAR_UUID_GREEN        0xFF02
 #define RGBW_CHAR_UUID_BLUE         0xFF03
 #define RGBW_CHAR_UUID_WARM_WHITE   0xFF04
-#define RGBW_CHAR_UUID_EFFECT       0xFF05  // New effect control characteristic
-#define RGBW_CHAR_UUID_BRIGHTNESS   0xFF06  // Brightness control
-#define RGBW_CHAR_UUID_SPEED        0xFF07  // Effect speed control
+#define RGBW_CHAR_UUID_EFFECT       0xFF05
+#define RGBW_CHAR_UUID_BRIGHTNESS   0xFF06
+#define RGBW_CHAR_UUID_SPEED        0xFF07
 
-// Device name - Change this for each device!
-// Should match the QR code: RGBW_LED_001, RGBW_LED_002, etc.
-#ifndef DEVICE_NAME
-#define DEVICE_NAME "RGBW_LED_001"
-#endif
+// Device name from Kconfig
+#define DEVICE_NAME CONFIG_DEVICE_NAME
 
 // BLE Server functions
 void ble_server_init(void);
