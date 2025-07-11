@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Alive Light Control</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@300;400;700&display=swap');
-        
+
         * {
             margin: 0;
             padding: 0;
@@ -35,15 +36,20 @@
             flex-direction: column;
             align-items: center;
             padding: 20px;
-            background-image: 
+            background-image:
                 radial-gradient(circle at 25% 25%, var(--glow-color) 0%, transparent 50%),
                 radial-gradient(circle at 75% 75%, var(--glow-color) 0%, transparent 50%);
             animation: backgroundPulse 8s ease-in-out infinite alternate;
         }
 
         @keyframes backgroundPulse {
-            0% { filter: brightness(1); }
-            100% { filter: brightness(1.1); }
+            0% {
+                filter: brightness(1);
+            }
+
+            100% {
+                filter: brightness(1.1);
+            }
         }
 
         .terminal-container {
@@ -53,7 +59,7 @@
             border: 2px solid var(--secondary-green);
             border-radius: 8px;
             padding: 0;
-            box-shadow: 
+            box-shadow:
                 0 0 20px var(--glow-color),
                 inset 0 0 20px rgba(0, 255, 65, 0.1);
             position: relative;
@@ -170,8 +176,15 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
         }
 
         .connect-btn {
@@ -494,15 +507,15 @@
             .terminal-container {
                 margin: 10px;
             }
-            
+
             .terminal-body {
                 padding: 20px;
             }
-            
+
             .effect-buttons {
                 grid-template-columns: repeat(2, 1fr);
             }
-            
+
             .ascii-art {
                 font-size: 8px;
             }
@@ -520,23 +533,29 @@
         }
 
         @keyframes scan {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="terminal-container">
         <div class="terminal-header">
             ALIVE LIGHT CONTROL
         </div>
-        
-        <div class="ascii-art"> █████╗ ██╗     ██╗██╗   ██╗███████╗
-██╔══██╗██║     ██║██║   ██║██╔════╝
-███████║██║     ██║██║   ██║█████╗  
-██╔══██║██║     ██║╚██╗ ██╔╝██╔══╝  
-██║  ██║███████╗██║ ╚████╔╝ ███████╗
-╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝  ╚══════╝</div>
+
+        <div class="ascii-art"> █████╗ ██╗ ██╗██╗ ██╗███████╗
+            ██╔══██╗██║ ██║██║ ██║██╔════╝
+            ███████║██║ ██║██║ ██║█████╗
+            ██╔══██║██║ ██║╚██╗ ██╔╝██╔══╝
+            ██║ ██║███████╗██║ ╚████╔╝ ███████╗
+            ╚═╝ ╚═╝╚══════╝╚═╝ ╚═══╝ ╚══════╝</div>
 
         <div class="terminal-body">
             <div id="deviceInfo" class="device-info" style="display: none;">
@@ -569,20 +588,23 @@
                     <button class="effect-btn" data-effect="5">✨ TWINKLE</button>
                     <button class="effect-btn" data-effect="6">⚡ LIGHTNING</button>
                     <button class="effect-btn" data-effect="7">🕯️ CANDLE</button>
-                    
+
                     <!-- AL8860 specific effects -->
                     <button class="effect-btn al8860-only" data-effect="8" style="display: none;">🌊 PULSE WAVE</button>
-                    <button class="effect-btn al8860-only" data-effect="9" style="display: none;">🔄 SOFT TRANSITION</button>
-                    
+                    <button class="effect-btn al8860-only" data-effect="9" style="display: none;">🔄 SOFT
+                        TRANSITION</button>
+
                     <!-- LM3414 specific effects -->
-                    <button class="effect-btn lm3414-only" data-effect="8" style="display: none;">🎯 PRECISION FADE</button>
+                    <button class="effect-btn lm3414-only" data-effect="8" style="display: none;">🎯 PRECISION
+                        FADE</button>
                     <button class="effect-btn lm3414-only" data-effect="9" style="display: none;">⚡ FAST STROBE</button>
                 </div>
 
                 <div class="control-group">
                     <label for="brightnessSlider">☀️ BRIGHTNESS</label>
                     <div class="slider-container">
-                        <input type="range" id="brightnessSlider" class="slider brightness" min="0" max="100" value="50">
+                        <input type="range" id="brightnessSlider" class="slider brightness" min="0" max="100"
+                            value="50">
                         <div class="value-display" id="brightnessValue">50%</div>
                     </div>
                 </div>
@@ -640,7 +662,8 @@
         Created by Christoffer Kolbe Boye-Hansen<br>
         <a href="https://github.com/promillen/RGBWW-app-control" target="_blank">
             <svg class="github-icon" viewBox="0 0 24 24">
-                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                <path
+                    d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
             </svg>
             View on GitHub
         </a>
@@ -660,7 +683,7 @@
                 this.currentEffect = 2; // Default to smooth fade
                 this.chipType = null; // Will be detected: 'LM3414' or 'AL8860'
                 this.maxDuty = 255; // Will be updated based on chip detection
-                
+
                 this.initializeUI();
                 this.parseURLParams();
                 this.checkBluetoothSupport();
@@ -688,12 +711,12 @@
                 const params = new URLSearchParams(window.location.search);
                 const deviceName = params.get('device');
                 const autoConnect = params.get('autoconnect');
-                
+
                 if (deviceName) {
                     this.targetDeviceName = deviceName;
                     document.getElementById('deviceName').textContent = deviceName;
                     document.getElementById('deviceInfo').style.display = 'block';
-                    
+
                     if (autoConnect === 'true') {
                         this.debug('Auto-connect enabled');
                         setTimeout(() => {
@@ -706,18 +729,29 @@
             detectChipType() {
                 // Detect chip type based on device name patterns
                 const deviceName = this.device.name;
-                
+
+                this.debug(`Detecting chip type for device: "${deviceName}"`);
+
                 // Method: Detect by device name pattern (based on board configuration)
-                if (deviceName && (deviceName.includes('_OLED') || deviceName.includes('OLED'))) {
+                // Check for various OLED indicators in device name
+                if (deviceName && (
+                    deviceName.includes('_OLED') ||
+                    deviceName.includes('OLED') ||
+                    deviceName.toUpperCase().includes('OLED') ||
+                    // Add more specific patterns if needed
+                    deviceName.includes('AL8860')
+                )) {
                     this.chipType = 'AL8860';
                     this.maxDuty = 255; // 8-bit
+                    this.debug(`AL8860 detected - device name contains OLED indicator`);
                 } else {
-                    // Default to LM3414 for no OLED or unknown devices
+                    // Default to LM3414 for devices without OLED indicators
                     this.chipType = 'LM3414';
                     this.maxDuty = 4095; // 12-bit
+                    this.debug(`LM3414 detected - no OLED indicator found`);
                 }
 
-                this.debug(`Chip detected: ${this.chipType} (Max duty: ${this.maxDuty})`);
+                this.debug(`Final chip detection: ${this.chipType} (Max duty: ${this.maxDuty}) for device: "${deviceName}"`);
                 this.updateChipInfo();
                 this.showChipSpecificEffects();
             }
@@ -726,7 +760,7 @@
                 const chipInfo = document.getElementById('chipInfo');
                 const chipName = document.getElementById('chipName');
                 const chipSpecs = document.getElementById('chipSpecs');
-                
+
                 if (this.chipType === 'AL8860') {
                     chipInfo.className = 'chip-info al8860';
                     chipName.textContent = 'AL8860';
@@ -736,7 +770,7 @@
                     chipName.textContent = 'LM3414';
                     chipSpecs.textContent = '42V 1A LED DRIVER • 12-BIT RESOLUTION';
                 }
-                
+
                 chipInfo.style.display = 'block';
             }
 
@@ -762,7 +796,7 @@
 
             initializeUI() {
                 const connectBtn = document.getElementById('connectBtn');
-                
+
                 connectBtn.addEventListener('click', () => {
                     if (this.isConnected) {
                         this.disconnect();
@@ -772,7 +806,7 @@
                         this.connectWithChoice();
                     }
                 });
-                
+
                 // Setup effect buttons
                 document.querySelectorAll('.effect-btn').forEach(btn => {
                     btn.addEventListener('click', (e) => {
@@ -780,7 +814,7 @@
                         this.setEffect(effect);
                     });
                 });
-                
+
                 // Setup brightness slider (0-100%)
                 const brightnessSlider = document.getElementById('brightnessSlider');
                 const brightnessValue = document.getElementById('brightnessValue');
@@ -788,7 +822,7 @@
                     brightnessValue.textContent = e.target.value + '%';
                     this.throttledEffectUpdate('brightness', parseInt(e.target.value));
                 });
-                
+
                 // Setup speed slider (0-100%)
                 const speedSlider = document.getElementById('speedSlider');
                 const speedValue = document.getElementById('speedValue');
@@ -796,12 +830,12 @@
                     speedValue.textContent = e.target.value + '%';
                     this.throttledEffectUpdate('speed', parseInt(e.target.value));
                 });
-                
+
                 // Setup color sliders (0-100%)
                 ['red', 'green', 'blue', 'white'].forEach(color => {
                     const slider = document.getElementById(`${color}Slider`);
                     const valueDisplay = document.getElementById(`${color}Value`);
-                    
+
                     slider.addEventListener('input', (e) => {
                         valueDisplay.textContent = e.target.value + '%';
                         this.throttledUpdate();
@@ -840,7 +874,7 @@
                 const r = Math.round((parseInt(document.getElementById('redSlider').value) / 100) * 255);
                 const g = Math.round((parseInt(document.getElementById('greenSlider').value) / 100) * 255);
                 const b = Math.round((parseInt(document.getElementById('blueSlider').value) / 100) * 255);
-                
+
                 document.getElementById('colorPreview').style.background = `rgb(${r}, ${g}, ${b})`;
             }
 
@@ -876,7 +910,7 @@
 
                 } catch (error) {
                     this.error('Auto-connect failed', error);
-                    
+
                     if (error.name === 'NotFoundError') {
                         this.updateStatus(`${this.targetDeviceName} NOT FOUND`, 'disconnected');
                     } else if (error.name === 'NotAllowedError') {
@@ -913,7 +947,7 @@
 
                 } catch (error) {
                     this.error('Connection choice failed', error);
-                    
+
                     if (error.name === 'NotFoundError') {
                         this.updateStatus('NO DEVICES FOUND', 'disconnected');
                     } else if (error.name === 'NotAllowedError') {
@@ -930,9 +964,6 @@
             async completeConnection() {
                 this.debug(`Device selected: ${this.device.name}`);
 
-                // Detect chip type before proceeding
-                this.detectChipType();
-
                 this.updateStatus('ESTABLISHING LINK', 'connecting');
 
                 this.device.addEventListener('gattserverdisconnected', () => {
@@ -946,12 +977,12 @@
 
                 this.server = await this.device.gatt.connect();
                 this.debug('GATT server connected');
-                
+
                 this.updateStatus('LOADING SERVICES', 'connecting');
-                
+
                 const service = await this.server.getPrimaryService('000000ff-0000-1000-8000-00805f9b34fb');
                 this.debug('Service acquired');
-                
+
                 // Get all characteristics
                 this.characteristics.red = await service.getCharacteristic('0000ff01-0000-1000-8000-00805f9b34fb');
                 this.characteristics.green = await service.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
@@ -960,7 +991,16 @@
                 this.characteristics.effect = await service.getCharacteristic('0000ff05-0000-1000-8000-00805f9b34fb');
                 this.characteristics.brightness = await service.getCharacteristic('0000ff06-0000-1000-8000-00805f9b34fb');
                 this.characteristics.speed = await service.getCharacteristic('0000ff07-0000-1000-8000-00805f9b34fb');
-                
+
+                // Try to get chip info characteristic
+                try {
+                    this.characteristics.chipInfo = await service.getCharacteristic('0000ff08-0000-1000-8000-00805f9b34fb');
+                    await this.detectChipTypeFromCharacteristic();
+                } catch (error) {
+                    this.debug('Chip info characteristic not available, using fallback detection');
+                    this.detectChipTypeFromName(); // Fallback to name-based detection
+                }
+
                 this.debug('All characteristics loaded');
 
                 this.isConnected = true;
@@ -968,11 +1008,63 @@
                 this.updateStatus(`CONNECTED TO ${this.device.name}`, 'connected');
                 this.updateConnectButton(false);
                 document.getElementById('controls').classList.add('active');
-                
+
+                // Update chip info display
+                this.updateChipInfo();
+                this.showChipSpecificEffects();
+
                 // Set initial effect
                 await this.setEffect(this.currentEffect);
             }
 
+            async detectChipTypeFromCharacteristic() {
+                try {
+                    const value = await this.characteristics.chipInfo.readValue();
+                    const chipName = new TextDecoder().decode(value);
+
+                    this.debug(`Chip info from characteristic: "${chipName}"`);
+
+                    if (chipName === 'AL8860') {
+                        this.chipType = 'AL8860';
+                        this.maxDuty = 255;
+                    } else if (chipName === 'LM3414') {
+                        this.chipType = 'LM3414';
+                        this.maxDuty = 4095;
+                    } else {
+                        this.debug(`Unknown chip type: ${chipName}, defaulting to LM3414`);
+                        this.chipType = 'LM3414';
+                        this.maxDuty = 4095;
+                    }
+
+                    this.debug(`Chip detected from characteristic: ${this.chipType} (Max duty: ${this.maxDuty})`);
+
+                } catch (error) {
+                    this.error('Failed to read chip info characteristic', error);
+                    this.detectChipTypeFromName(); // Fallback
+                }
+            }
+
+            detectChipTypeFromName() {
+                // Fallback method - detect from device name
+                const deviceName = this.device.name;
+
+                this.debug(`Fallback chip detection for device: "${deviceName}"`);
+
+                if (deviceName && (
+                    deviceName.includes('_OLED') ||
+                    deviceName.includes('OLED') ||
+                    deviceName.toUpperCase().includes('OLED') ||
+                    deviceName.includes('AL8860')
+                )) {
+                    this.chipType = 'AL8860';
+                    this.maxDuty = 255;
+                    this.debug(`AL8860 detected from name - device name contains OLED indicator`);
+                } else {
+                    this.chipType = 'LM3414';
+                    this.maxDuty = 4095;
+                    this.debug(`LM3414 detected from name - no OLED indicator found`);
+                }
+            }
             showScanAnimation(show) {
                 const animation = document.getElementById('scanAnimation');
                 if (animation) {
@@ -983,7 +1075,7 @@
             updateConnectButton(disabled = false) {
                 const connectBtn = document.getElementById('connectBtn');
                 connectBtn.disabled = disabled;
-                
+
                 if (this.isConnected) {
                     connectBtn.textContent = 'DISCONNECT';
                 } else {
@@ -999,7 +1091,7 @@
                 if (this.device && this.device.gatt.connected) {
                     this.device.gatt.disconnect();
                 }
-                
+
                 this.isConnected = false;
                 this.chipType = null;
                 this.updateStatus('SYSTEM OFFLINE', 'disconnected');
@@ -1034,7 +1126,7 @@
                 try {
                     // Convert percentage (0-100) to device value (0-255)
                     const deviceValue = Math.round((brightnessPercent / 100) * 255);
-                    
+
                     this.debug(`Setting brightness to: ${deviceValue} (${brightnessPercent}%)`);
                     await this.characteristics.brightness.writeValue(new Uint8Array([deviceValue]));
                 } catch (error) {
@@ -1048,7 +1140,7 @@
                 try {
                     // Convert percentage (0-100) to device value (0-255)
                     const deviceValue = Math.round((speedPercent / 100) * 255);
-                    
+
                     this.debug(`Setting speed to: ${deviceValue} (${speedPercent}%)`);
                     await this.characteristics.speed.writeValue(new Uint8Array([deviceValue]));
                 } catch (error) {
@@ -1068,15 +1160,15 @@
 
                     await this.characteristics.red.writeValue(new Uint8Array([deviceR]));
                     await new Promise(resolve => setTimeout(resolve, 10));
-                    
+
                     await this.characteristics.green.writeValue(new Uint8Array([deviceG]));
                     await new Promise(resolve => setTimeout(resolve, 10));
-                    
+
                     await this.characteristics.blue.writeValue(new Uint8Array([deviceB]));
                     await new Promise(resolve => setTimeout(resolve, 10));
-                    
+
                     await this.characteristics.warmWhite.writeValue(new Uint8Array([deviceW]));
-                    
+
                     this.debug(`Colors sent: R=${deviceR}, G=${deviceG}, B=${deviceB}, W=${deviceW} (${rPercent}%, ${gPercent}%, ${bPercent}%, ${wPercent}%)`);
                 } catch (error) {
                     this.error('Failed to update colors', error);
@@ -1103,7 +1195,7 @@
 
                 } catch (error) {
                     this.error('Failed to update LED', error);
-                    
+
                     if (error.name === 'NetworkError' && this.retryCount < this.maxRetries) {
                         this.retryCount++;
                         this.debug(`Retrying update (${this.retryCount}/${this.maxRetries})`);
@@ -1122,4 +1214,5 @@
         window.aliveLightController = new AliveLightController();
     </script>
 </body>
+
 </html>

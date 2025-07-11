@@ -10,13 +10,13 @@
 #include "host/ble_hs.h"
 #include "host/ble_uuid.h"
 #include "host/util/util.h"
+#include "light_effects.h"
 #include "nimble/hci_common.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
+#include "pwm_control.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
-#include "pwm_control.h"
-#include "light_effects.h"
 
 static const char *TAG = "BLE_SERVER";
 
@@ -80,6 +80,11 @@ static const struct ble_gatt_svc_def gatt_svc_def[] = {
                 .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
             },
             {
+                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_CHIP_INFO),
+                .access_cb = rgbw_chip_info_access,
+                .flags = BLE_GATT_CHR_F_READ, // Read-only
+            },
+            {
                 0, /* No more characteristics in this service */
             },
         }
@@ -105,8 +110,7 @@ static uint8_t convert_from_driver_resolution(uint32_t driver_value) {
 }
 
 static int rgbw_red_access(uint16_t conn_handle, uint16_t attr_handle,
-                           struct ble_gatt_access_ctxt *ctxt, void *arg)
-{
+                           struct ble_gatt_access_ctxt *ctxt, void *arg) {
     int rc;
 
     switch (ctxt->op) {
@@ -123,7 +127,7 @@ static int rgbw_red_access(uint16_t conn_handle, uint16_t attr_handle,
             // Enable manual mode when individual colors are set
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
-            
+
             // Convert 8-bit BLE value to driver resolution
             uint32_t driver_value = convert_to_driver_resolution(current_rgbw[0]);
             pwm_set_duty(PWM_CHANNEL_RED, driver_value);
@@ -137,8 +141,7 @@ static int rgbw_red_access(uint16_t conn_handle, uint16_t attr_handle,
 }
 
 static int rgbw_green_access(uint16_t conn_handle, uint16_t attr_handle,
-                             struct ble_gatt_access_ctxt *ctxt, void *arg)
-{
+                             struct ble_gatt_access_ctxt *ctxt, void *arg) {
     int rc;
 
     switch (ctxt->op) {
@@ -155,7 +158,7 @@ static int rgbw_green_access(uint16_t conn_handle, uint16_t attr_handle,
             // Enable manual mode when individual colors are set
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
-            
+
             // Convert 8-bit BLE value to driver resolution
             uint32_t driver_value = convert_to_driver_resolution(current_rgbw[1]);
             pwm_set_duty(PWM_CHANNEL_GREEN, driver_value);
@@ -169,8 +172,7 @@ static int rgbw_green_access(uint16_t conn_handle, uint16_t attr_handle,
 }
 
 static int rgbw_blue_access(uint16_t conn_handle, uint16_t attr_handle,
-                            struct ble_gatt_access_ctxt *ctxt, void *arg)
-{
+                            struct ble_gatt_access_ctxt *ctxt, void *arg) {
     int rc;
 
     switch (ctxt->op) {
@@ -187,7 +189,7 @@ static int rgbw_blue_access(uint16_t conn_handle, uint16_t attr_handle,
             // Enable manual mode when individual colors are set
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
-            
+
             // Convert 8-bit BLE value to driver resolution
             uint32_t driver_value = convert_to_driver_resolution(current_rgbw[2]);
             pwm_set_duty(PWM_CHANNEL_BLUE, driver_value);
@@ -201,8 +203,7 @@ static int rgbw_blue_access(uint16_t conn_handle, uint16_t attr_handle,
 }
 
 static int rgbw_white_access(uint16_t conn_handle, uint16_t attr_handle,
-                             struct ble_gatt_access_ctxt *ctxt, void *arg)
-{
+                             struct ble_gatt_access_ctxt *ctxt, void *arg) {
     int rc;
 
     switch (ctxt->op) {
@@ -219,7 +220,7 @@ static int rgbw_white_access(uint16_t conn_handle, uint16_t attr_handle,
             // Enable manual mode when individual colors are set
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
-            
+
             // Convert 8-bit BLE value to driver resolution
             uint32_t driver_value = convert_to_driver_resolution(current_rgbw[3]);
             pwm_set_duty(PWM_CHANNEL_WARM_WHITE, driver_value);
@@ -233,8 +234,7 @@ static int rgbw_white_access(uint16_t conn_handle, uint16_t attr_handle,
 }
 
 static int rgbw_effect_access(uint16_t conn_handle, uint16_t attr_handle,
-                              struct ble_gatt_access_ctxt *ctxt, void *arg)
-{
+                              struct ble_gatt_access_ctxt *ctxt, void *arg) {
     int rc;
     uint8_t effect_value;
 
@@ -250,22 +250,22 @@ static int rgbw_effect_access(uint16_t conn_handle, uint16_t attr_handle,
             if (rc != 0) {
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
-            
+
             if (effect_value >= EFFECT_MAX) {
                 ESP_LOGW(TAG, "Invalid effect value: %d (max: %d)", effect_value, EFFECT_MAX - 1);
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
-            
+
             // Set the effect
             light_effects_set_effect((light_effect_t)effect_value);
-            
+
             // If setting a non-static effect, disable manual mode
             if (effect_value != EFFECT_STATIC && effect_value != EFFECT_OFF) {
                 light_effects_disable_manual_mode();
             } else {
                 light_effects_enable_manual_mode();
             }
-            
+
             ESP_LOGI(TAG, "✨ Effect set to: %d", effect_value);
             return 0;
 
@@ -276,8 +276,7 @@ static int rgbw_effect_access(uint16_t conn_handle, uint16_t attr_handle,
 }
 
 static int rgbw_brightness_access(uint16_t conn_handle, uint16_t attr_handle,
-                                  struct ble_gatt_access_ctxt *ctxt, void *arg)
-{
+                                  struct ble_gatt_access_ctxt *ctxt, void *arg) {
     int rc;
     uint8_t brightness_value;
 
@@ -294,7 +293,7 @@ static int rgbw_brightness_access(uint16_t conn_handle, uint16_t attr_handle,
             if (rc != 0) {
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
-            
+
             // Convert 8-bit BLE value to driver resolution
             uint32_t driver_brightness = convert_to_driver_resolution(brightness_value);
             light_effects_set_brightness(driver_brightness);
@@ -308,8 +307,7 @@ static int rgbw_brightness_access(uint16_t conn_handle, uint16_t attr_handle,
 }
 
 static int rgbw_speed_access(uint16_t conn_handle, uint16_t attr_handle,
-                             struct ble_gatt_access_ctxt *ctxt, void *arg)
-{
+                             struct ble_gatt_access_ctxt *ctxt, void *arg) {
     int rc;
     uint8_t speed_value;
 
@@ -325,7 +323,7 @@ static int rgbw_speed_access(uint16_t conn_handle, uint16_t attr_handle,
             if (rc != 0) {
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
-            
+
             light_effects_set_speed(speed_value);
             ESP_LOGI(TAG, "⚡ Speed set to: %d", speed_value);
             return 0;
@@ -336,8 +334,7 @@ static int rgbw_speed_access(uint16_t conn_handle, uint16_t attr_handle,
     }
 }
 
-int ble_gap_event(struct ble_gap_event *event, void *arg)
-{
+int ble_gap_event(struct ble_gap_event *event, void *arg) {
     struct ble_gap_conn_desc desc;
     int rc;
 
@@ -353,7 +350,7 @@ int ble_gap_event(struct ble_gap_event *event, void *arg)
                          desc.peer_id_addr.val[0], desc.peer_id_addr.val[1],
                          desc.peer_id_addr.val[2], desc.peer_id_addr.val[3],
                          desc.peer_id_addr.val[4], desc.peer_id_addr.val[5]);
-                
+
                 // Notify effects system about BLE connection
                 light_effects_set_ble_connected(true);
             }
@@ -365,10 +362,10 @@ int ble_gap_event(struct ble_gap_event *event, void *arg)
 
         case BLE_GAP_EVENT_DISCONNECT:
             ESP_LOGI(TAG, "🔌 disconnect; reason=%d", event->disconnect.reason);
-            
+
             // Notify effects system about BLE disconnection
             light_effects_set_ble_connected(false);
-            
+
             /* Connection terminated; resume advertising */
             ble_advertise();
             return 0;
@@ -396,8 +393,9 @@ int ble_gap_event(struct ble_gap_event *event, void *arg)
             return 0;
 
         case BLE_GAP_EVENT_NOTIFY_TX:
-            ESP_LOGI(TAG, "notify_tx event; conn_handle=%d attr_handle=%d "
-                          "status=%d is_indication=%d",
+            ESP_LOGI(TAG,
+                     "notify_tx event; conn_handle=%d attr_handle=%d "
+                     "status=%d is_indication=%d",
                      event->notify_tx.conn_handle,
                      event->notify_tx.attr_handle,
                      event->notify_tx.status,
@@ -405,8 +403,9 @@ int ble_gap_event(struct ble_gap_event *event, void *arg)
             return 0;
 
         case BLE_GAP_EVENT_SUBSCRIBE:
-            ESP_LOGI(TAG, "subscribe event; conn_handle=%d attr_handle=%d "
-                          "reason=%d prevn=%d curn=%d previ=%d curi=%d",
+            ESP_LOGI(TAG,
+                     "subscribe event; conn_handle=%d attr_handle=%d "
+                     "reason=%d prevn=%d curn=%d previ=%d curi=%d",
                      event->subscribe.conn_handle,
                      event->subscribe.attr_handle,
                      event->subscribe.reason,
@@ -428,8 +427,7 @@ int ble_gap_event(struct ble_gap_event *event, void *arg)
     }
 }
 
-void ble_advertise(void)
-{
+void ble_advertise(void) {
     struct ble_gap_adv_params adv_params;
     struct ble_hs_adv_fields fields;
     const char *name;
@@ -452,14 +450,28 @@ void ble_advertise(void)
     fields.name_is_complete = 1;
 
     /* Advertise the service UUID */
-    fields.uuids16 = (ble_uuid16_t[]) {
-        BLE_UUID16_INIT(RGBW_SERVICE_UUID)
-    };
+    fields.uuids16 = (ble_uuid16_t[]){
+        BLE_UUID16_INIT(RGBW_SERVICE_UUID)};
     fields.num_uuids16 = 1;
     fields.uuids16_is_complete = 1;
 
     /* Set advertisement flags */
     fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
+
+    /* Add manufacturer specific data with chip type information */
+    uint8_t mfg_data[3];
+    mfg_data[0] = 0xFF;  // Company ID (using 0xFF for custom/test)
+    mfg_data[1] = 0xFF;  // Company ID continued
+#ifdef CONFIG_BOARD_ESP32C3_OLED
+    mfg_data[2] = 0xA8;  // AL8860 identifier
+#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
+    mfg_data[2] = 0x34;  // LM3414 identifier
+#else
+    mfg_data[2] = 0x00;  // Unknown
+#endif
+
+    fields.mfg_data = mfg_data;
+    fields.mfg_data_len = sizeof(mfg_data);
 
     rc = ble_gap_adv_set_fields(&fields);
     if (rc != 0) {
@@ -475,16 +487,22 @@ void ble_advertise(void)
         return;
     }
 
-    ESP_LOGI(TAG, "📡 advertising started");
+    ESP_LOGI(TAG, "📡 advertising started with chip type: %s",
+#ifdef CONFIG_BOARD_ESP32C3_OLED
+             "AL8860"
+#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
+             "LM3414"
+#else
+             "Unknown"
+#endif
+    );
 }
 
-void ble_on_reset(int reason)
-{
+void ble_on_reset(int reason) {
     ESP_LOGE(TAG, "resetting state; reason=%d", reason);
 }
 
-void ble_on_sync(void)
-{
+void ble_on_sync(void) {
     int rc;
 
     /* Make sure we have proper identity address set (public preferred) */
@@ -511,15 +529,13 @@ void ble_on_sync(void)
     ble_advertise();
 }
 
-void ble_host_task(void *param)
-{
+void ble_host_task(void *param) {
     ESP_LOGI(TAG, "BLE Host Task Started");
-    nimble_port_run(); // This function will return only when nimble_port_stop() is executed
+    nimble_port_run();  // This function will return only when nimble_port_stop() is executed
     nimble_port_freertos_deinit();
 }
 
-void ble_server_init(void)
-{
+void ble_server_init(void) {
     int rc;
 
     /* Initialize the NimBLE host configuration */
@@ -549,4 +565,32 @@ void ble_server_init(void)
     nimble_port_freertos_init(ble_host_task);
 
     ESP_LOGI(TAG, "BLE server initialized");
+}
+
+static int rgbw_chip_info_access(uint16_t conn_handle, uint16_t attr_handle,
+                                 struct ble_gatt_access_ctxt *ctxt, void *arg) {
+    int rc;
+    uint8_t chip_info[16];  // Buffer for chip info string
+
+    switch (ctxt->op) {
+        case BLE_GATT_ACCESS_OP_READ_CHR:
+#ifdef CONFIG_BOARD_ESP32C3_OLED
+            strcpy((char *)chip_info, "AL8860");
+#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
+            strcpy((char *)chip_info, "LM3414");
+#else
+            strcpy((char *)chip_info, "UNKNOWN");
+#endif
+            rc = os_mbuf_append(ctxt->om, chip_info, strlen((char *)chip_info));
+            ESP_LOGI(TAG, "Chip info read: %s", chip_info);
+            return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+
+        case BLE_GATT_ACCESS_OP_WRITE_CHR:
+            // Read-only characteristic
+            return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
+
+        default:
+            assert(0);
+            return BLE_ATT_ERR_UNLIKELY;
+    }
 }

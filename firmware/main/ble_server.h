@@ -15,6 +15,7 @@
 #define RGBW_CHAR_UUID_EFFECT       0xFF05
 #define RGBW_CHAR_UUID_BRIGHTNESS   0xFF06
 #define RGBW_CHAR_UUID_SPEED        0xFF07
+#define RGBW_CHAR_UUID_CHIP_INFO    0xFF08
 
 // Device name from Kconfig
 #define DEVICE_NAME CONFIG_DEVICE_NAME
