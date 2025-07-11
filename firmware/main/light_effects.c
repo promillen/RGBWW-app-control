@@ -13,9 +13,9 @@ static const char *TAG = "LIGHT_EFFECTS";
 // Effect configuration
 static effect_config_t config = {
     .type = EFFECT_SMOOTH_FADE,
-    .brightness = 128,
+    .brightness = 128,  // Start with 8-bit value, will be converted during init
     .speed = 50,
-    .r = 255, .g = 0, .b = 0, .w = 0,
+    .r = 255, .g = 0, .b = 0, .w = 0,  // Start with 8-bit values
     .enabled = true,
     .max_duty = 255  // Will be set correctly during init
 };
@@ -65,11 +65,11 @@ static void hsv_to_rgb(float h, float s, float v, uint8_t *r, uint8_t *g, uint8_
 static void apply_brightness(uint32_t *r, uint32_t *g, uint32_t *b, uint32_t *w, uint32_t brightness) {
     uint32_t max_duty = config.max_duty;
     
-    // Scale from 8-bit input to driver resolution, then apply brightness
-    *r = (*r * max_duty / 255) * brightness / max_duty;
-    *g = (*g * max_duty / 255) * brightness / max_duty;
-    *b = (*b * max_duty / 255) * brightness / max_duty;
-    *w = (*w * max_duty / 255) * brightness / max_duty;
+    // Apply brightness scaling (brightness is already in driver resolution)
+    *r = (*r * brightness) / max_duty;
+    *g = (*g * brightness) / max_duty;
+    *b = (*b * brightness) / max_duty;
+    *w = (*w * brightness) / max_duty;
 }
 
 // Scale color values to driver resolution
@@ -360,14 +360,14 @@ static void effects_task(void *pvParameters) {
     ESP_LOGI(TAG, "Effects task started for %s", LED_DRIVER_TYPE);
     
     while (1) {
-        if (!config.enabled || manual_mode) {
-            // Effects disabled or in manual mode
+        if (!config.enabled) {
+            // Effects disabled
             vTaskDelay(pdMS_TO_TICKS(100));
             continue;
         }
         
-        // If BLE is connected, don't run automatic effects
-        if (ble_connected && config.type != EFFECT_STATIC) {
+        // Always run effects unless manually overridden or off
+        if (manual_mode && config.type != EFFECT_OFF) {
             vTaskDelay(pdMS_TO_TICKS(100));
             continue;
         }
@@ -375,14 +375,16 @@ static void effects_task(void *pvParameters) {
         switch (config.type) {
             case EFFECT_OFF:
                 pwm_set_rgbw(0, 0, 0, 0);
+                vTaskDelay(pdMS_TO_TICKS(1000)); // Sleep longer when off
                 break;
                 
             case EFFECT_STATIC:
-                // Static color - only update once
+                // Static color - only update when values change
                 {
                     uint32_t r = config.r, g = config.g, b = config.b, w = config.w;
                     apply_brightness(&r, &g, &b, &w, config.brightness);
                     pwm_set_rgbw(r, g, b, w);
+                    vTaskDelay(pdMS_TO_TICKS(500)); // Update less frequently for static
                 }
                 break;
                 
@@ -429,6 +431,8 @@ static void effects_task(void *pvParameters) {
 #endif
                 
             default:
+                ESP_LOGW(TAG, "Unknown effect: %d", config.type);
+                config.type = EFFECT_SMOOTH_FADE;
                 break;
         }
         
@@ -446,12 +450,12 @@ void light_effects_init(void) {
     // Set max duty based on driver
     config.max_duty = pwm_get_max_duty();
     
-    // Scale existing color values to new resolution
-    config.r = scale_to_driver_resolution(config.r);
-    config.g = scale_to_driver_resolution(config.g);
-    config.b = scale_to_driver_resolution(config.b);
-    config.w = scale_to_driver_resolution(config.w);
-    config.brightness = scale_to_driver_resolution(config.brightness);
+    // Convert initial values from 8-bit to driver resolution
+    config.brightness = (config.brightness * config.max_duty) / 255;
+    config.r = (config.r * config.max_duty) / 255;
+    config.g = (config.g * config.max_duty) / 255;
+    config.b = (config.b * config.max_duty) / 255;
+    config.w = (config.w * config.max_duty) / 255;
     
     ESP_LOGI(TAG, "Driver: %s, Resolution: %d-bit (max duty: %lu)", 
              LED_DRIVER_TYPE,
@@ -461,6 +465,7 @@ void light_effects_init(void) {
     // Set default effect when no BLE connection
     if (!ble_connected) {
         config.type = EFFECT_SMOOTH_FADE;
+        config.enabled = true;
     }
 }
 
@@ -529,8 +534,8 @@ void light_effects_set_ble_connected(bool connected) {
     ble_connected = connected;
     
     if (connected) {
-        ESP_LOGI(TAG, "🔗 BLE connected - switching to manual mode");
-        light_effects_enable_manual_mode();
+        ESP_LOGI(TAG, "🔗 BLE connected - ready for control");
+        // Don't automatically enable manual mode, let the app control effects
     } else {
         ESP_LOGI(TAG, "🔌 BLE disconnected - starting smooth fade effect");
         light_effects_disable_manual_mode();

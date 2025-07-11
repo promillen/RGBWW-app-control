@@ -1,4 +1,3 @@
-
 menu "RGBW LED Controller Configuration"
 
     choice BOARD_TYPE
@@ -38,33 +37,5 @@ menu "RGBW LED Controller Configuration"
         help
             The BLE device name that will be advertised. Change this for each device.
             Examples: RGBW_LED_001, RGBW_LED_002, etc.
-
-    menu "Current Configuration (Read-Only)"
-        
-        config INFO_PWM_FREQ
-            int "PWM Frequency (Hz)"
-            default 1000 if BOARD_ESP32C3_OLED
-            default 5000 if BOARD_ESP32C3_NO_OLED
-            help
-                Automatically set PWM frequency based on board type.
-                This is read-only and optimized for your LED driver.
-
-        config INFO_MAX_CURRENT
-            int "Max Current per Channel (mA)"
-            default 1500 if BOARD_ESP32C3_OLED
-            default 1000 if BOARD_ESP32C3_NO_OLED
-            help
-                Automatically set maximum current based on board type.
-                This is read-only and optimized for your LED driver.
-
-        config INFO_PWM_BITS
-            int "PWM Resolution (bits)"
-            default 8 if BOARD_ESP32C3_OLED
-            default 12 if BOARD_ESP32C3_NO_OLED
-            help
-                Automatically set PWM resolution based on board type.
-                AL8860: 8-bit (256 levels), LM3414: 12-bit (4096 levels)
-
-    endmenu
 
 endmenu

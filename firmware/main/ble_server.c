@@ -89,8 +89,20 @@ static const struct ble_gatt_svc_def gatt_svc_def[] = {
     },
 };
 
-// Current RGBW values
+// Current RGBW values (stored as 8-bit values for BLE)
 static uint8_t current_rgbw[4] = {0, 0, 0, 0};
+
+// Helper function to convert 8-bit BLE value to driver resolution
+static uint32_t convert_to_driver_resolution(uint8_t ble_value) {
+    uint32_t max_duty = pwm_get_max_duty();
+    return (ble_value * max_duty) / 255;
+}
+
+// Helper function to convert driver resolution to 8-bit BLE value
+static uint8_t convert_from_driver_resolution(uint32_t driver_value) {
+    uint32_t max_duty = pwm_get_max_duty();
+    return (driver_value * 255) / max_duty;
+}
 
 static int rgbw_red_access(uint16_t conn_handle, uint16_t attr_handle,
                            struct ble_gatt_access_ctxt *ctxt, void *arg)
@@ -111,8 +123,11 @@ static int rgbw_red_access(uint16_t conn_handle, uint16_t attr_handle,
             // Enable manual mode when individual colors are set
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
-            pwm_set_duty(PWM_CHANNEL_RED, current_rgbw[0]);
-            ESP_LOGI(TAG, "🔴 Red set to: %d", current_rgbw[0]);
+            
+            // Convert 8-bit BLE value to driver resolution
+            uint32_t driver_value = convert_to_driver_resolution(current_rgbw[0]);
+            pwm_set_duty(PWM_CHANNEL_RED, driver_value);
+            ESP_LOGI(TAG, "🔴 Red set to: %d (driver: %lu)", current_rgbw[0], (unsigned long)driver_value);
             return 0;
 
         default:
@@ -140,8 +155,11 @@ static int rgbw_green_access(uint16_t conn_handle, uint16_t attr_handle,
             // Enable manual mode when individual colors are set
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
-            pwm_set_duty(PWM_CHANNEL_GREEN, current_rgbw[1]);
-            ESP_LOGI(TAG, "🟢 Green set to: %d", current_rgbw[1]);
+            
+            // Convert 8-bit BLE value to driver resolution
+            uint32_t driver_value = convert_to_driver_resolution(current_rgbw[1]);
+            pwm_set_duty(PWM_CHANNEL_GREEN, driver_value);
+            ESP_LOGI(TAG, "🟢 Green set to: %d (driver: %lu)", current_rgbw[1], (unsigned long)driver_value);
             return 0;
 
         default:
@@ -169,8 +187,11 @@ static int rgbw_blue_access(uint16_t conn_handle, uint16_t attr_handle,
             // Enable manual mode when individual colors are set
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
-            pwm_set_duty(PWM_CHANNEL_BLUE, current_rgbw[2]);
-            ESP_LOGI(TAG, "🔵 Blue set to: %d", current_rgbw[2]);
+            
+            // Convert 8-bit BLE value to driver resolution
+            uint32_t driver_value = convert_to_driver_resolution(current_rgbw[2]);
+            pwm_set_duty(PWM_CHANNEL_BLUE, driver_value);
+            ESP_LOGI(TAG, "🔵 Blue set to: %d (driver: %lu)", current_rgbw[2], (unsigned long)driver_value);
             return 0;
 
         default:
@@ -198,8 +219,11 @@ static int rgbw_white_access(uint16_t conn_handle, uint16_t attr_handle,
             // Enable manual mode when individual colors are set
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
-            pwm_set_duty(PWM_CHANNEL_WARM_WHITE, current_rgbw[3]);
-            ESP_LOGI(TAG, "⚪ Warm White set to: %d", current_rgbw[3]);
+            
+            // Convert 8-bit BLE value to driver resolution
+            uint32_t driver_value = convert_to_driver_resolution(current_rgbw[3]);
+            pwm_set_duty(PWM_CHANNEL_WARM_WHITE, driver_value);
+            ESP_LOGI(TAG, "⚪ Warm White set to: %d (driver: %lu)", current_rgbw[3], (unsigned long)driver_value);
             return 0;
 
         default:
@@ -228,6 +252,7 @@ static int rgbw_effect_access(uint16_t conn_handle, uint16_t attr_handle,
             }
             
             if (effect_value >= EFFECT_MAX) {
+                ESP_LOGW(TAG, "Invalid effect value: %d (max: %d)", effect_value, EFFECT_MAX - 1);
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
             
@@ -258,7 +283,8 @@ static int rgbw_brightness_access(uint16_t conn_handle, uint16_t attr_handle,
 
     switch (ctxt->op) {
         case BLE_GATT_ACCESS_OP_READ_CHR:
-            brightness_value = light_effects_get_config()->brightness;
+            // Convert current brightness from driver resolution to 8-bit for BLE
+            brightness_value = convert_from_driver_resolution(light_effects_get_config()->brightness);
             rc = os_mbuf_append(ctxt->om, &brightness_value, sizeof(uint8_t));
             ESP_LOGI(TAG, "Brightness read: %d", brightness_value);
             return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
@@ -269,8 +295,10 @@ static int rgbw_brightness_access(uint16_t conn_handle, uint16_t attr_handle,
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
             
-            light_effects_set_brightness(brightness_value);
-            ESP_LOGI(TAG, "🔆 Brightness set to: %d", brightness_value);
+            // Convert 8-bit BLE value to driver resolution
+            uint32_t driver_brightness = convert_to_driver_resolution(brightness_value);
+            light_effects_set_brightness(driver_brightness);
+            ESP_LOGI(TAG, "🔆 Brightness set to: %d (driver: %lu)", brightness_value, (unsigned long)driver_brightness);
             return 0;
 
         default:

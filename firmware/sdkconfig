@@ -1832,14 +1832,6 @@ CONFIG_VFS_INITIALIZE_DEV_NULL=y
 CONFIG_BOARD_ESP32C3_OLED=y
 # CONFIG_BOARD_ESP32C3_NO_OLED is not set
 CONFIG_DEVICE_NAME="RGBW_LED_001"
-
-#
-# Current Configuration (Read-Only)
-#
-CONFIG_INFO_PWM_FREQ=5000
-CONFIG_INFO_MAX_CURRENT=1000
-CONFIG_INFO_PWM_BITS=12
-# end of Current Configuration (Read-Only)
 # end of RGBW LED Controller Configuration
 # end of Component config
 
