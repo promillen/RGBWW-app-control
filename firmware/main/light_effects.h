@@ -1,30 +1,30 @@
 #ifndef LIGHT_EFFECTS_H
 #define LIGHT_EFFECTS_H
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
+
 #include "sdkconfig.h"
 
-// Effect types - simplified and unified
 typedef enum {
-    EFFECT_OFF = 0,
-    EFFECT_STATIC,           // Static color (manual control)
-    EFFECT_FADE,             // Smooth color fading (auto-detects chip optimization)
-    EFFECT_COLOUR_CYCLE,     // Random color cycling
-    EFFECT_LIGHTNING,        // Lightning storm effect
-    EFFECT_CANDLE,           // Candle flame with random base color
-    EFFECT_STROBE,           // Strobe light effect
-    EFFECT_MAX
+    EFFECT_OFF = 0,          // 0 - Off
+    EFFECT_STATIC,           // 1 - Static
+    EFFECT_FADE,             // 2 - Fade  
+    EFFECT_COLOUR_CYCLE,     // 3 - Colour cycle
+    EFFECT_LIGHTNING,        // 4 - Lightning
+    EFFECT_CANDLE,           // 5 - Candle
+    EFFECT_STROBE,           // 6 - Strobe
+    EFFECT_MAX               // 7 - boundary marker
 } light_effect_t;
 
 // Effect configuration structure
 typedef struct {
     light_effect_t type;
-    uint32_t brightness;     // 0 to max_duty brightness
-    uint8_t speed;          // 0-255 effect speed
-    uint32_t r, g, b, w;    // Base color values (0 to max_duty)
-    bool enabled;           // Effect system enabled/disabled
-    uint32_t max_duty;      // Maximum duty cycle for current driver
+    uint32_t brightness;  // 0 to max_duty brightness
+    uint8_t speed;        // 0-255 effect speed
+    uint32_t r, g, b, w;  // Base color values (0 to max_duty)
+    bool enabled;         // Effect system enabled/disabled
+    uint32_t max_duty;    // Maximum duty cycle for current driver
 } effect_config_t;
 
 // Function declarations

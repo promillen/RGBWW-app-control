@@ -4,8 +4,8 @@
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.16)
 
-# Enable Bluetooth
-set(COMPONENTS main bt)
+# Enable Bluetooth and WiFi (WiFi required for ESP-NOW)
+set(COMPONENTS main bt esp_wifi)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(rgbw_controller)

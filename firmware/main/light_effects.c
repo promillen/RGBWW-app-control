@@ -381,7 +381,7 @@ static void effects_task(void *pvParameters) {
             case EFFECT_COLOUR_CYCLE:
                 effect_colour_cycle();
                 break;
-                
+
             case EFFECT_LIGHTNING:
                 effect_lightning();
                 break;

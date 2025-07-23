@@ -3,6 +3,7 @@
 
 #include "ble_server.h"
 #include "esp_log.h"
+#include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nimble/nimble_port.h"
@@ -10,6 +11,7 @@
 #include "nvs_flash.h"
 #include "pwm_control.h"
 #include "light_effects.h"
+#include "esp_now_sync.h"
 #include "sdkconfig.h"
 
 static const char *TAG = "RGBW_MAIN";
@@ -25,7 +27,8 @@ void app_main(void) {
     }
     ESP_ERROR_CHECK(ret);
 
-    ESP_LOGI(TAG, "=== RGBW LED Controller ===");
+    ESP_LOGI(TAG, "=== RGBW LED Controller with ESP-NOW Broadcast ===");
+    
     ESP_LOGI(TAG, "Board: %s", BOARD_TYPE);
     ESP_LOGI(TAG, "LED Driver: %s", LED_DRIVER_TYPE);
     ESP_LOGI(TAG, "Max Current: %dmA", CONFIG_LED_MAX_CURRENT_MA);
@@ -43,8 +46,18 @@ void app_main(void) {
 
     /* Initialize light effects system */
     light_effects_init();
-
     light_effects_start();
+
+    /* Initialize ESP-NOW for effect synchronization */
+    ESP_LOGI(TAG, "Initializing ESP-NOW broadcast synchronization...");
+    ret = esp_now_sync_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize ESP-NOW: %s", esp_err_to_name(ret));
+    } else {
+        ESP_LOGI(TAG, "✅ ESP-NOW broadcast initialized successfully");
+        ESP_LOGI(TAG, "📡 Using broadcast mode - no peer configuration needed");
+        ESP_LOGI(TAG, "🌐 All devices in range will receive effect changes");
+    }
 
     ESP_LOGI(TAG, "Starting NimBLE BLE stack");
 
@@ -69,5 +82,7 @@ void app_main(void) {
 #endif
     
     ESP_LOGI(TAG, "Light effects running - will switch to smooth fade when no device connected");
+    ESP_LOGI(TAG, "📡 ESP-NOW broadcast synchronization active");
+    ESP_LOGI(TAG, "📱 Connect via BLE to control and sync effects across ALL devices");
     ESP_LOGI(TAG, "Ready for connections!");
 }

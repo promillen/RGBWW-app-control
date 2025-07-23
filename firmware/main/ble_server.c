@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "esp_log.h"
+#include "esp_now_sync.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "host/ble_hs.h"
@@ -135,26 +136,26 @@ static int rgbw_red_access(uint16_t conn_handle, uint16_t attr_handle,
             if (rc != 0) {
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
-            
+
             // Enable manual mode when individual colors are set
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
 
             // Convert 8-bit BLE value to driver resolution
             uint32_t driver_value = convert_to_driver_resolution(current_rgbw[0]);
-            
+
             // Apply maximum brightness limit
             uint32_t limited_value = apply_max_brightness_limit(driver_value);
-            
+
             pwm_set_duty(PWM_CHANNEL_RED, limited_value);
-            
+
             // Calculate percentages for logging
             uint8_t input_percent = (current_rgbw[0] * 100) / 255;
             uint8_t max_percent = light_effects_get_max_brightness_percent();
             uint8_t actual_percent = (input_percent * max_percent) / 100;
-            
-            ESP_LOGI(TAG, "🔴 Red: %.1f%% → PWM: %lu (max: %d%%, actual: %.1f%%)", 
-                     (float)input_percent, (unsigned long)limited_value, 
+
+            ESP_LOGI(TAG, "🔴 Red: %.1f%% → PWM: %lu (max: %d%%, actual: %.1f%%)",
+                     (float)input_percent, (unsigned long)limited_value,
                      max_percent, (float)actual_percent);
             return 0;
 
@@ -179,26 +180,26 @@ static int rgbw_green_access(uint16_t conn_handle, uint16_t attr_handle,
             if (rc != 0) {
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
-            
+
             // Enable manual mode when individual colors are set
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
 
             // Convert 8-bit BLE value to driver resolution
             uint32_t driver_value = convert_to_driver_resolution(current_rgbw[1]);
-            
+
             // Apply maximum brightness limit
             uint32_t limited_value = apply_max_brightness_limit(driver_value);
-            
+
             pwm_set_duty(PWM_CHANNEL_GREEN, limited_value);
-            
+
             // Calculate percentages for logging
             uint8_t input_percent = (current_rgbw[1] * 100) / 255;
             uint8_t max_percent = light_effects_get_max_brightness_percent();
             uint8_t actual_percent = (input_percent * max_percent) / 100;
-            
-            ESP_LOGI(TAG, "🟢 Green: %.1f%% → PWM: %lu (max: %d%%, actual: %.1f%%)", 
-                     (float)input_percent, (unsigned long)limited_value, 
+
+            ESP_LOGI(TAG, "🟢 Green: %.1f%% → PWM: %lu (max: %d%%, actual: %.1f%%)",
+                     (float)input_percent, (unsigned long)limited_value,
                      max_percent, (float)actual_percent);
             return 0;
 
@@ -223,26 +224,26 @@ static int rgbw_blue_access(uint16_t conn_handle, uint16_t attr_handle,
             if (rc != 0) {
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
-            
+
             // Enable manual mode when individual colors are set
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
 
             // Convert 8-bit BLE value to driver resolution
             uint32_t driver_value = convert_to_driver_resolution(current_rgbw[2]);
-            
+
             // Apply maximum brightness limit
             uint32_t limited_value = apply_max_brightness_limit(driver_value);
-            
+
             pwm_set_duty(PWM_CHANNEL_BLUE, limited_value);
-            
+
             // Calculate percentages for logging
             uint8_t input_percent = (current_rgbw[2] * 100) / 255;
             uint8_t max_percent = light_effects_get_max_brightness_percent();
             uint8_t actual_percent = (input_percent * max_percent) / 100;
-            
-            ESP_LOGI(TAG, "🔵 Blue: %.1f%% → PWM: %lu (max: %d%%, actual: %.1f%%)", 
-                     (float)input_percent, (unsigned long)limited_value, 
+
+            ESP_LOGI(TAG, "🔵 Blue: %.1f%% → PWM: %lu (max: %d%%, actual: %.1f%%)",
+                     (float)input_percent, (unsigned long)limited_value,
                      max_percent, (float)actual_percent);
             return 0;
 
@@ -267,26 +268,26 @@ static int rgbw_white_access(uint16_t conn_handle, uint16_t attr_handle,
             if (rc != 0) {
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
-            
+
             // Enable manual mode when individual colors are set
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
 
             // Convert 8-bit BLE value to driver resolution
             uint32_t driver_value = convert_to_driver_resolution(current_rgbw[3]);
-            
+
             // Apply maximum brightness limit
             uint32_t limited_value = apply_max_brightness_limit(driver_value);
-            
+
             pwm_set_duty(PWM_CHANNEL_WARM_WHITE, limited_value);
-            
+
             // Calculate percentages for logging
             uint8_t input_percent = (current_rgbw[3] * 100) / 255;
             uint8_t max_percent = light_effects_get_max_brightness_percent();
             uint8_t actual_percent = (input_percent * max_percent) / 100;
-            
-            ESP_LOGI(TAG, "⚪ Warm White: %.1f%% → PWM: %lu (max: %d%%, actual: %.1f%%)", 
-                     (float)input_percent, (unsigned long)limited_value, 
+
+            ESP_LOGI(TAG, "⚪ Warm White: %.1f%% → PWM: %lu (max: %d%%, actual: %.1f%%)",
+                     (float)input_percent, (unsigned long)limited_value,
                      max_percent, (float)actual_percent);
             return 0;
 
@@ -330,6 +331,22 @@ static int rgbw_effect_access(uint16_t conn_handle, uint16_t attr_handle,
             }
 
             ESP_LOGI(TAG, "✨ Effect set to: %d", effect_value);
+
+            if (esp_now_is_ble_connected()) {
+                effect_config_t *config = light_effects_get_config();
+                uint8_t brightness_8bit = (config->brightness * 255) / config->max_duty;
+                esp_err_t broadcast_result = esp_now_broadcast_effect(
+                    (light_effect_t)effect_value,
+                    brightness_8bit,
+                    config->speed);
+
+                if (broadcast_result == ESP_OK) {
+                    ESP_LOGI(TAG, "📡 Effect change broadcasted to synchronized devices");
+                } else if (broadcast_result != ESP_ERR_INVALID_STATE) {
+                    ESP_LOGW(TAG, "📡 Failed to broadcast effect change: %s", esp_err_to_name(broadcast_result));
+                }
+            }
+
             return 0;
 
         default:
@@ -457,6 +474,9 @@ int ble_gap_event(struct ble_gap_event *event, void *arg) {
 
                 // Notify effects system about BLE connection
                 light_effects_set_ble_connected(true);
+
+                // ADD THIS LINE: Notify ESP-NOW system about BLE connection
+                esp_now_set_ble_connected(true);
             }
             if (event->connect.status != 0) {
                 /* Connection failed; resume advertising */
@@ -469,6 +489,9 @@ int ble_gap_event(struct ble_gap_event *event, void *arg) {
 
             // Notify effects system about BLE disconnection
             light_effects_set_ble_connected(false);
+
+            // ADD THIS LINE: Notify ESP-NOW system about BLE disconnection
+            esp_now_set_ble_connected(false);
 
             /* Connection terminated; resume advertising */
             ble_advertise();
