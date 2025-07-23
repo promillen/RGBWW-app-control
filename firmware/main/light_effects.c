@@ -414,6 +414,15 @@ void light_effects_init(void) {
     // Set max duty based on driver
     config.max_duty = pwm_get_max_duty();
     
+    // Initialize maximum brightness from KConfig if available
+#ifdef CONFIG_LED_MAX_BRIGHTNESS_PERCENT
+    max_brightness_percent = CONFIG_LED_MAX_BRIGHTNESS_PERCENT;
+    ESP_LOGI(TAG, "Maximum brightness set from KConfig: %d%%", max_brightness_percent);
+#else
+    max_brightness_percent = 100; // Default if no KConfig setting
+    ESP_LOGI(TAG, "Maximum brightness set to default: %d%%", max_brightness_percent);
+#endif
+    
     // Convert initial values from 8-bit to driver resolution
     config.brightness = (config.brightness * config.max_duty) / 255;
     config.r = (config.r * config.max_duty) / 255;
@@ -477,7 +486,14 @@ void light_effects_set_brightness(uint32_t brightness) {
         brightness = config.max_duty;
     }
     config.brightness = brightness;
-    ESP_LOGI(TAG, "Brightness set to: %lu/%lu", (unsigned long)brightness, (unsigned long)config.max_duty);
+    
+    // Calculate actual percentage for logging
+    uint8_t brightness_percent = (brightness * 100) / config.max_duty;
+    uint8_t actual_percent = (brightness_percent * max_brightness_percent) / 100;
+    
+    ESP_LOGI(TAG, "Brightness set to: %lu/%lu (%.1f%%) - max limit %d%% = actual %.1f%%", 
+             (unsigned long)brightness, (unsigned long)config.max_duty,
+             (float)brightness_percent, max_brightness_percent, (float)actual_percent);
 }
 
 void light_effects_set_speed(uint8_t speed) {
