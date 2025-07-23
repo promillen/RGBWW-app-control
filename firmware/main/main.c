@@ -43,6 +43,7 @@ void app_main(void) {
 
     /* Initialize light effects system */
     light_effects_init();
+
     light_effects_start();
 
     ESP_LOGI(TAG, "Starting NimBLE BLE stack");

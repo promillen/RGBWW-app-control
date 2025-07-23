@@ -31,6 +31,23 @@ menu "RGBW LED Controller Configuration"
 
     endchoice
 
+    config MAX_BRIGHTNESS_PERCENT
+        int "Maximum brightness limit (%)"
+        range 1 100
+        default 100
+        help
+            Set the maximum brightness limit as a percentage.
+            The LED brightness sliders will map 0-100% to 0-[this value]%.
+            This provides a global brightness limit for safety or power consumption.
+            
+            Examples:
+            - 100%: No limit (full brightness available)
+            - 80%: Limit to 80% of maximum possible brightness
+            - 60%: Limit to 60% of maximum possible brightness
+            
+            This setting is applied at compile time. To change it later,
+            you need to rebuild the firmware with a different value.
+
     config DEVICE_NAME
         string "BLE Device Name"
         default "RGBW_LED_001"

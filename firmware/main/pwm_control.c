@@ -82,6 +82,6 @@ void pwm_set_rgbw(uint32_t r, uint32_t g, uint32_t b, uint32_t w)
     pwm_set_duty(PWM_CHANNEL_WARM_WHITE, w);
     
     uint32_t max_duty = pwm_get_max_duty();
-    ESP_LOGI(TAG, "RGBW set to: R=%lu, G=%lu, B=%lu, W=%lu (max=%lu)", 
-             (unsigned long)r, (unsigned long)g, (unsigned long)b, (unsigned long)w, (unsigned long)max_duty);
+    ESP_LOGD(TAG, "PWM RGBW: R=%lu, G=%lu, B=%lu, W=%lu (max=%lu)", 
+            (unsigned long)r, (unsigned long)g, (unsigned long)b, (unsigned long)w, (unsigned long)max_duty);
 }

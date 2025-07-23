@@ -12,7 +12,7 @@ static const char *TAG = "LIGHT_EFFECTS";
 
 // Effect configuration
 static effect_config_t config = {
-    .type = EFFECT_SMOOTH_FADE,
+    .type = EFFECT_FADE,
     .brightness = 128,  // Start with 8-bit value, will be converted during init
     .speed = 50,
     .r = 255, .g = 0, .b = 0, .w = 0,  // Start with 8-bit values
@@ -20,25 +20,49 @@ static effect_config_t config = {
     .max_duty = 255  // Will be set correctly during init
 };
 
+// Brightness management
+static uint8_t max_brightness_percent = 100;  // Default to 100% maximum brightness
+
 // Effect state variables
 static TaskHandle_t effects_task_handle = NULL;
 static bool ble_connected = false;
 static bool manual_mode = false;
 static uint32_t effect_counter = 0;
+
+// Fade effect variables
 static float hue = 0.0f;
-static uint8_t rgb_cycle_state = 0;  // For RGB cycle effect
+
+// Color cycle variables
+static uint32_t cycle_timer = 0;
+static uint8_t current_color[3] = {255, 0, 0}; // Current RGB color
+static uint8_t target_color[3] = {0, 255, 0};  // Target RGB color
+static uint32_t transition_duration = 0;
+static uint32_t transition_start = 0;
+
+// Lightning variables
+static uint32_t lightning_timer = 0;
+static bool lightning_active = false;
+static uint8_t lightning_phase = 0;
+static uint32_t lightning_delay = 0;
+
+// Candle variables
+static float candle_base_hue = 0.0f;
+static float candle_hue_offset = 0.0f;
+static bool candle_initialized = false;
+
+// Strobe variables
+static bool strobe_state = false;
+static uint32_t strobe_timer = 0;
 
 // Driver-specific timing constants based on Kconfig
 #ifdef CONFIG_BOARD_ESP32C3_OLED
     // AL8860 optimized timings (slower, more stable)
     #define EFFECT_UPDATE_INTERVAL_MS 50
-    #define FAST_EFFECT_DIVISOR 8
-    #define SMOOTH_FADE_SPEED_MULT 0.001f
+    #define FADE_SPEED_MULT 0.001f
 #elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
     // LM3414 optimized timings (faster, more precise)
     #define EFFECT_UPDATE_INTERVAL_MS 20
-    #define FAST_EFFECT_DIVISOR 4
-    #define SMOOTH_FADE_SPEED_MULT 0.002f
+    #define FADE_SPEED_MULT 0.002f
 #else
     #error "No board configuration selected. Please run 'idf.py menuconfig'"
 #endif
@@ -61,7 +85,7 @@ static void hsv_to_rgb(float h, float s, float v, uint8_t *r, uint8_t *g, uint8_
     }
 }
 
-// Apply brightness scaling with proper resolution scaling
+// Apply brightness scaling with proper resolution scaling and max brightness limit
 static void apply_brightness(uint32_t *r, uint32_t *g, uint32_t *b, uint32_t *w, uint32_t brightness) {
     uint32_t max_duty = config.max_duty;
     
@@ -70,6 +94,13 @@ static void apply_brightness(uint32_t *r, uint32_t *g, uint32_t *b, uint32_t *w,
     *g = (*g * brightness) / max_duty;
     *b = (*b * brightness) / max_duty;
     *w = (*w * brightness) / max_duty;
+    
+    // Apply maximum brightness limit
+    uint32_t max_allowed = (max_duty * max_brightness_percent) / 100;
+    if (*r > max_allowed) *r = max_allowed;
+    if (*g > max_allowed) *g = max_allowed;
+    if (*b > max_allowed) *b = max_allowed;
+    if (*w > max_allowed) *w = max_allowed;
 }
 
 // Scale color values to driver resolution
@@ -77,13 +108,45 @@ static uint32_t scale_to_driver_resolution(uint8_t color_8bit) {
     return (color_8bit * config.max_duty) / 255;
 }
 
-// Smooth fade effect (default)
-static void effect_smooth_fade(void) {
+// Generate random color for effects
+static void generate_random_color(uint8_t *r, uint8_t *g, uint8_t *b) {
+    float random_hue = (float)rand() / RAND_MAX;
+    hsv_to_rgb(random_hue, 1.0f, 1.0f, r, g, b);
+}
+
+// Linear interpolation between two colors
+static uint8_t lerp_color(uint8_t from, uint8_t to, float progress) {
+    return from + (uint8_t)((to - from) * progress);
+}
+
+// 1. OFF - Turn everything off
+static void effect_off(void) {
+    pwm_set_rgbw(0, 0, 0, 0);
+}
+
+// 2. STATIC - Static color (for manual control)
+static void effect_static(void) {
+    uint32_t r = config.r, g = config.g, b = config.b, w = config.w;
+    apply_brightness(&r, &g, &b, &w, config.brightness);
+    pwm_set_rgbw(r, g, b, w);
+}
+
+// 3. FADE - Unified fade effect with chip-specific optimization
+static void effect_fade(void) {
     uint8_t r, g, b;
     uint32_t scaled_r, scaled_g, scaled_b, scaled_w = 0;
     
-    // Smooth hue transition with driver-optimized speed
-    hue += (config.speed / 255.0f) * SMOOTH_FADE_SPEED_MULT;
+    // Calculate speed based on driver type and speed setting
+    float speed_factor = (config.speed / 255.0f) * FADE_SPEED_MULT;
+    
+#ifdef CONFIG_BOARD_ESP32C3_OLED
+    // AL8860: Slower, more stable fade
+    hue += speed_factor;
+#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
+    // LM3414: Faster, more precise fade using higher resolution
+    hue += speed_factor * 2.0f; // Can handle faster transitions
+#endif
+    
     if (hue >= 1.0f) hue = 0.0f;
     
     hsv_to_rgb(hue, 1.0f, 1.0f, &r, &g, &b);
@@ -98,262 +161,190 @@ static void effect_smooth_fade(void) {
     pwm_set_rgbw(scaled_r, scaled_g, scaled_b, scaled_w);
 }
 
-// RGB cycle effect (hard transitions between colors)
-static void effect_rgb_cycle(void) {
-    static uint32_t last_change = 0;
-    uint32_t r = 0, g = 0, b = 0, w = 0;
-    
-    // Calculate delay based on speed
-    uint32_t delay_ticks = (255 - config.speed) * 2 + 50;
-    
-    if (effect_counter - last_change >= delay_ticks) {
-        rgb_cycle_state = (rgb_cycle_state + 1) % 7;
-        last_change = effect_counter;
-    }
-    
-    // Set colors based on cycle state, scale to driver resolution
-    switch (rgb_cycle_state) {
-        case 0: r = config.brightness; break;  // Red
-        case 1: g = config.brightness; break;  // Green  
-        case 2: b = config.brightness; break;  // Blue
-        case 3: r = config.brightness; g = config.brightness; break;  // Yellow
-        case 4: r = config.brightness; b = config.brightness; break;  // Magenta
-        case 5: g = config.brightness; b = config.brightness; break;  // Cyan
-        case 6: r = config.brightness; g = config.brightness; b = config.brightness; break;  // White
-    }
-    
-    pwm_set_rgbw(r, g, b, w);
-}
-
-// Breathing effect
-static void effect_breathing(void) {
-    uint32_t r = config.r, g = config.g, b = config.b, w = config.w;
-    
-    // Sine wave breathing
-    float breath = (sin(effect_counter * (config.speed / 255.0f) * 0.02f) + 1.0f) / 2.0f;
-    uint32_t brightness = (uint32_t)(config.brightness * breath);
-    
-    apply_brightness(&r, &g, &b, &w, brightness);
-    pwm_set_rgbw(r, g, b, w);
-}
-
-// Twinkle pulse effect
-static void effect_twinkle_pulse(void) {
-    static uint8_t last_r = 0, last_g = 0, last_b = 0;
-    uint8_t r, g, b;
+// 4. COLOUR CYCLE - Switch between random colors
+static void effect_colour_cycle(void) {
     uint32_t scaled_r, scaled_g, scaled_b, scaled_w = 0;
     
-    // Random color changes
-    if ((effect_counter % (256 - config.speed)) == 0) {
-        hsv_to_rgb((float)rand() / RAND_MAX, 0.8f, 1.0f, &r, &g, &b);
-        last_r = r; last_g = g; last_b = b;
-    } else {
-        r = last_r; g = last_g; b = last_b;
+    // Calculate transition duration based on speed (slower speed = longer transitions)
+    if (transition_duration == 0) {
+        transition_duration = (255 - config.speed) * 5 + 50; // 50-1325 ticks
+        transition_start = effect_counter;
     }
+    
+    // Check if we need to start a new transition
+    if (effect_counter - transition_start >= transition_duration) {
+        // Move target to current and generate new target
+        current_color[0] = target_color[0];
+        current_color[1] = target_color[1];
+        current_color[2] = target_color[2];
+        
+        // Generate new random target color
+        generate_random_color(&target_color[0], &target_color[1], &target_color[2]);
+        
+        // Reset transition
+        transition_start = effect_counter;
+        transition_duration = (255 - config.speed) * 5 + 50;
+    }
+    
+    // Calculate progress (0.0 to 1.0)
+    float progress = (float)(effect_counter - transition_start) / transition_duration;
+    if (progress > 1.0f) progress = 1.0f;
+    
+    // Smooth easing function for better visual appeal
+    progress = progress * progress * (3.0f - 2.0f * progress);
+    
+    // Interpolate between current and target colors
+    uint8_t r = lerp_color(current_color[0], target_color[0], progress);
+    uint8_t g = lerp_color(current_color[1], target_color[1], progress);
+    uint8_t b = lerp_color(current_color[2], target_color[2], progress);
     
     // Scale to driver resolution
     scaled_r = scale_to_driver_resolution(r);
     scaled_g = scale_to_driver_resolution(g);
     scaled_b = scale_to_driver_resolution(b);
     
-    // Apply low brightness with occasional flickers
-    uint32_t flicker_brightness = config.brightness / 4;
-    if ((effect_counter % 50) == 0 && (rand() % 10) == 0) {
-        flicker_brightness = config.brightness / 2;
-    }
+    apply_brightness(&scaled_r, &scaled_g, &scaled_b, &scaled_w, config.brightness);
     
-    apply_brightness(&scaled_r, &scaled_g, &scaled_b, &scaled_w, flicker_brightness);
     pwm_set_rgbw(scaled_r, scaled_g, scaled_b, scaled_w);
 }
 
-// Lightning flash effect
-static void effect_lightning_flash(void) {
-    static uint32_t flash_timer = 0;
-    static bool in_flash = false;
+// 5. LIGHTNING - Lightning storm effect
+// Effect: Creates realistic lightning flashes with bright white strikes followed by dimmer afterglows.
+// Multiple lightning bolts can occur in sequence with random timing between storms.
+static void effect_lightning(void) {
     uint32_t r = 0, g = 0, b = 0, w = 0;
     
-    flash_timer++;
+    // Speed affects frequency of lightning strikes
+    uint32_t storm_frequency = (255 - config.speed) * 3 + 20; // 20-785 ticks between potential strikes
     
-    if (!in_flash) {
-        // Random lightning strikes
-        if ((flash_timer > (500 - config.speed * 2)) && (rand() % 100) == 0) {
-            in_flash = true;
-            flash_timer = 0;
+    lightning_timer++;
+    
+    if (!lightning_active) {
+        // Check for new lightning strike
+        if (lightning_timer >= storm_frequency && (rand() % 100) < 15) { // 15% chance per check
+            lightning_active = true;
+            lightning_phase = 0;
+            lightning_timer = 0;
+            lightning_delay = rand() % 3; // Random delay for realism
         }
     } else {
-        // Lightning flash sequence
-        if (flash_timer < 3) {
-            // Bright white flash
-            w = config.brightness;
-            r = config.brightness / 2;  // Cool white
-        } else if (flash_timer < 6) {
-            // Quick dim
-            w = config.brightness / 4;
-        } else if (flash_timer < 8) {
-            // Second flash
-            w = config.brightness * 3 / 4;
-        } else {
-            // Reset
-            in_flash = false;
-            flash_timer = 0;
+        // Lightning sequence
+        switch (lightning_phase) {
+            case 0: // Pre-flash delay
+                if (lightning_timer >= lightning_delay) {
+                    lightning_phase = 1;
+                    lightning_timer = 0;
+                }
+                break;
+                
+            case 1: // Main flash (bright white)
+                w = config.brightness;
+                b = config.brightness / 3; // Cool white tint
+                if (lightning_timer >= 2) {
+                    lightning_phase = 2;
+                    lightning_timer = 0;
+                }
+                break;
+                
+            case 2: // Quick dim
+                w = config.brightness / 4;
+                if (lightning_timer >= 1) {
+                    lightning_phase = 3;
+                    lightning_timer = 0;
+                }
+                break;
+                
+            case 3: // Second flash (if random)
+                if (rand() % 3 == 0) { // 33% chance of double flash
+                    w = config.brightness * 2 / 3;
+                    b = config.brightness / 4;
+                }
+                if (lightning_timer >= 2) {
+                    lightning_phase = 4;
+                    lightning_timer = 0;
+                }
+                break;
+                
+            case 4: // Afterglow
+                w = config.brightness / 8;
+                if (lightning_timer >= 5) {
+                    lightning_active = false;
+                    lightning_timer = 0;
+                }
+                break;
         }
     }
     
     pwm_set_rgbw(r, g, b, w);
 }
 
-// Candle flicker effect
-static void effect_candle_flicker(void) {
-    static float flame_intensity = 1.0f;
+// 6. CANDLE - Flickering candle with random base color
+// Effect: Chooses a random warm color when effect starts, then creates realistic candle flicker
+// by varying the hue slightly and adding random intensity variations
+static void effect_candle(void) {
     uint32_t r, g, b, w;
     
-    // Random flame flicker
-    flame_intensity += (((float)rand() / RAND_MAX) - 0.5f) * 0.1f;
-    if (flame_intensity < 0.3f) flame_intensity = 0.3f;
-    if (flame_intensity > 1.0f) flame_intensity = 1.0f;
+    // Initialize candle with random warm color when effect first starts
+    if (!candle_initialized) {
+        // Generate random hue in warm color range (red to yellow: 0.0 to 0.15)
+        candle_base_hue = (float)(rand() % 40) / 255.0f; // 0.0 to ~0.15
+        candle_initialized = true;
+        ESP_LOGI(TAG, "🕯️ New candle color selected, base hue: %.3f", candle_base_hue);
+    }
     
-    // Warm candle colors scaled to driver resolution
-    float base_intensity = 0.7f + 0.3f * flame_intensity;
-    r = (uint32_t)(config.brightness * base_intensity);
-    g = (uint32_t)(config.brightness * base_intensity * 0.4f);
-    b = 0;
-    w = (uint32_t)(config.brightness * base_intensity * 0.8f);
+    // Create flickering by varying hue and intensity
+    // Speed affects how fast the candle flickers
+    float flicker_speed = (config.speed / 255.0f) * 0.1f + 0.02f;
+    
+    // Generate subtle hue variation around base color
+    candle_hue_offset += ((float)rand() / RAND_MAX - 0.5f) * flicker_speed;
+    candle_hue_offset = fmaxf(-0.05f, fminf(0.05f, candle_hue_offset)); // Limit range
+    
+    float current_hue = candle_base_hue + candle_hue_offset;
+    if (current_hue < 0.0f) current_hue = 0.0f;
+    if (current_hue > 1.0f) current_hue = 1.0f;
+    
+    // Generate candle flicker intensity (mostly bright with occasional dims)
+    float base_intensity = 0.8f + 0.2f * ((float)rand() / RAND_MAX);
+    if (rand() % 20 == 0) { // 5% chance of bigger flicker
+        base_intensity *= 0.6f;
+    }
+    
+    // Convert HSV to RGB for the flame color
+    uint8_t flame_r, flame_g, flame_b;
+    hsv_to_rgb(current_hue, 0.9f, base_intensity, &flame_r, &flame_g, &flame_b);
+    
+    // Scale to driver resolution and apply brightness
+    r = (scale_to_driver_resolution(flame_r) * config.brightness) / config.max_duty;
+    g = (scale_to_driver_resolution(flame_g) * config.brightness) / config.max_duty;
+    b = (scale_to_driver_resolution(flame_b) * config.brightness) / config.max_duty;
+    w = (uint32_t)(config.brightness * base_intensity * 0.3f); // Warm white component
     
     pwm_set_rgbw(r, g, b, w);
 }
 
-// Board-specific effects based on Kconfig
-#ifdef CONFIG_BOARD_ESP32C3_OLED
-// AL8860 specific effects
-
-// Pulse wave effect - optimized for AL8860's hysteretic control
-static void effect_pulse_wave(void) {
-    static float wave_phase = 0.0f;
-    uint32_t r, g, b, w;
+// 7. STROBE - Strobe light effect
+// Effect: Rapidly flashes all channels on/off like a party strobe light
+static void effect_strobe(void) {
+    // Speed controls strobe frequency
+    uint32_t strobe_interval = (255 - config.speed) / 8 + 1; // 1-32 ticks
     
-    // Slower wave progression for AL8860's natural behavior
-    wave_phase += (config.speed / 255.0f) * 0.05f;
-    if (wave_phase >= 2.0f * M_PI) wave_phase = 0.0f;
+    strobe_timer++;
     
-    // Triangle wave pattern that works well with hysteretic control
-    float intensity;
-    if (wave_phase < M_PI) {
-        intensity = wave_phase / M_PI;
-    } else {
-        intensity = 2.0f - (wave_phase / M_PI);
-    }
-    
-    // Apply to warm white for smooth operation
-    uint32_t brightness = (uint32_t)(config.brightness * intensity);
-    r = config.r * brightness / config.max_duty;
-    g = config.g * brightness / config.max_duty;
-    b = config.b * brightness / config.max_duty;
-    w = brightness;
-    
-    pwm_set_rgbw(r, g, b, w);
-}
-
-// Soft transition effect - leverages AL8860's soft-start capability
-static void effect_soft_transition(void) {
-    static uint8_t target_state = 0;
-    static uint32_t transition_start = 0;
-    static uint32_t current_r = 0, current_g = 0, current_b = 0, current_w = 0;
-    
-    // Define transition targets
-    uint32_t targets[4][4] = {
-        {config.brightness, 0, 0, 0},                    // Red
-        {0, config.brightness, 0, 0},                    // Green
-        {0, 0, config.brightness, 0},                    // Blue
-        {0, 0, 0, config.brightness}                     // Warm White
-    };
-    
-    // Check if it's time for a new transition
-    uint32_t transition_duration = (255 - config.speed) * 10 + 100;
-    if (effect_counter - transition_start >= transition_duration) {
-        target_state = (target_state + 1) % 4;
-        transition_start = effect_counter;
-    }
-    
-    // Smooth interpolation to new target
-    float progress = (float)(effect_counter - transition_start) / transition_duration;
-    if (progress > 1.0f) progress = 1.0f;
-    
-    // Ease-in-out for smoother transitions with AL8860
-    progress = progress * progress * (3.0f - 2.0f * progress);
-    
-    uint32_t target_r = targets[target_state][0];
-    uint32_t target_g = targets[target_state][1];
-    uint32_t target_b = targets[target_state][2];
-    uint32_t target_w = targets[target_state][3];
-    
-    current_r = current_r + (uint32_t)((target_r - current_r) * progress);
-    current_g = current_g + (uint32_t)((target_g - current_g) * progress);
-    current_b = current_b + (uint32_t)((target_b - current_b) * progress);
-    current_w = current_w + (uint32_t)((target_w - current_w) * progress);
-    
-    pwm_set_rgbw(current_r, current_g, current_b, current_w);
-}
-
-#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
-// LM3414 specific effects
-
-// Precision fade effect - high-resolution fading for LM3414
-static void effect_precision_fade(void) {
-    static float precise_hue = 0.0f;
-    static float hue_step = 0.0f;
-    
-    uint8_t r, g, b;
-    uint32_t scaled_r, scaled_g, scaled_b, scaled_w = 0;
-    
-    // Ultra-smooth hue progression using LM3414's 12-bit resolution
-    hue_step = (config.speed / 255.0f) * 0.0001f;  // Very fine steps
-    precise_hue += hue_step;
-    if (precise_hue >= 1.0f) precise_hue = 0.0f;
-    
-    hsv_to_rgb(precise_hue, 1.0f, 1.0f, &r, &g, &b);
-    
-    // Use full 12-bit resolution for maximum precision
-    scaled_r = (r * config.max_duty) / 255;
-    scaled_g = (g * config.max_duty) / 255;
-    scaled_b = (b * config.max_duty) / 255;
-    
-    // Apply brightness with 12-bit precision
-    scaled_r = (scaled_r * config.brightness) / config.max_duty;
-    scaled_g = (scaled_g * config.brightness) / config.max_duty;
-    scaled_b = (scaled_b * config.brightness) / config.max_duty;
-    
-    pwm_set_rgbw(scaled_r, scaled_g, scaled_b, scaled_w);
-}
-
-// Fast strobe effect - high-frequency effects for LM3414
-static void effect_fast_strobe(void) {
-    static bool strobe_state = false;
-    static uint32_t last_strobe = 0;
-    
-    // Fast strobe timing taking advantage of LM3414's capabilities
-    uint32_t strobe_interval = (255 - config.speed) / FAST_EFFECT_DIVISOR + 1;
-    
-    if (effect_counter - last_strobe >= strobe_interval) {
+    if (strobe_timer >= strobe_interval) {
         strobe_state = !strobe_state;
-        last_strobe = effect_counter;
+        strobe_timer = 0;
     }
     
-    uint32_t intensity = strobe_state ? config.brightness : 0;
-    
-    // Alternate between colors at high frequency
-    uint8_t color_cycle = (effect_counter / (strobe_interval * 2)) % 3;
-    uint32_t r = 0, g = 0, b = 0, w = 0;
-    
-    switch (color_cycle) {
-        case 0: r = intensity; break;  // Red strobe
-        case 1: g = intensity; break;  // Green strobe
-        case 2: b = intensity; break;  // Blue strobe
+    if (strobe_state) {
+        // Full brightness on all channels for maximum strobe effect
+        uint32_t intensity = config.brightness;
+        pwm_set_rgbw(intensity, intensity, intensity, intensity);
+    } else {
+        // Off
+        pwm_set_rgbw(0, 0, 0, 0);
     }
-    
-    pwm_set_rgbw(r, g, b, w);
 }
-
-#endif
 
 // Main effects task
 static void effects_task(void *pvParameters) {
@@ -374,65 +365,38 @@ static void effects_task(void *pvParameters) {
         
         switch (config.type) {
             case EFFECT_OFF:
-                pwm_set_rgbw(0, 0, 0, 0);
+                effect_off();
                 vTaskDelay(pdMS_TO_TICKS(1000)); // Sleep longer when off
                 break;
                 
             case EFFECT_STATIC:
-                // Static color - only update when values change
-                {
-                    uint32_t r = config.r, g = config.g, b = config.b, w = config.w;
-                    apply_brightness(&r, &g, &b, &w, config.brightness);
-                    pwm_set_rgbw(r, g, b, w);
-                    vTaskDelay(pdMS_TO_TICKS(500)); // Update less frequently for static
-                }
+                effect_static();
+                vTaskDelay(pdMS_TO_TICKS(500)); // Update less frequently for static
                 break;
                 
-            case EFFECT_SMOOTH_FADE:
-                effect_smooth_fade();
+            case EFFECT_FADE:
+                effect_fade();
                 break;
                 
-            case EFFECT_RGB_CYCLE:
-                effect_rgb_cycle();
+            case EFFECT_COLOUR_CYCLE:
+                effect_colour_cycle();
                 break;
                 
-            case EFFECT_BREATHING:
-                effect_breathing();
+            case EFFECT_LIGHTNING:
+                effect_lightning();
                 break;
                 
-            case EFFECT_TWINKLE_PULSE:
-                effect_twinkle_pulse();
+            case EFFECT_CANDLE:
+                effect_candle();
                 break;
                 
-            case EFFECT_LIGHTNING_FLASH:
-                effect_lightning_flash();
+            case EFFECT_STROBE:
+                effect_strobe();
                 break;
-                
-            case EFFECT_CANDLE_FLICKER:
-                effect_candle_flicker();
-                break;
-
-#ifdef CONFIG_BOARD_ESP32C3_OLED
-            case EFFECT_PULSE_WAVE:
-                effect_pulse_wave();
-                break;
-                
-            case EFFECT_SOFT_TRANSITION:
-                effect_soft_transition();
-                break;
-#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
-            case EFFECT_PRECISION_FADE:
-                effect_precision_fade();
-                break;
-                
-            case EFFECT_FAST_STROBE:
-                effect_fast_strobe();
-                break;
-#endif
                 
             default:
                 ESP_LOGW(TAG, "Unknown effect: %d", config.type);
-                config.type = EFFECT_SMOOTH_FADE;
+                config.type = EFFECT_FADE;
                 break;
         }
         
@@ -464,7 +428,7 @@ void light_effects_init(void) {
     
     // Set default effect when no BLE connection
     if (!ble_connected) {
-        config.type = EFFECT_SMOOTH_FADE;
+        config.type = EFFECT_FADE;
         config.enabled = true;
     }
 }
@@ -488,10 +452,21 @@ void light_effects_stop(void) {
 
 void light_effects_set_effect(light_effect_t effect) {
     if (effect < EFFECT_MAX) {
+        // Reset effect-specific state when changing effects
+        if (config.type != effect) {
+            effect_counter = 0;
+            hue = 0.0f;
+            cycle_timer = 0;
+            transition_duration = 0;
+            lightning_timer = 0;
+            lightning_active = false;
+            lightning_phase = 0;
+            candle_initialized = false;
+            strobe_timer = 0;
+            strobe_state = false;
+        }
+        
         config.type = effect;
-        effect_counter = 0;  // Reset effect state
-        hue = 0.0f;
-        rgb_cycle_state = 0; // Reset RGB cycle
         ESP_LOGI(TAG, "Effect changed to: %d", effect);
     }
 }
@@ -537,9 +512,9 @@ void light_effects_set_ble_connected(bool connected) {
         ESP_LOGI(TAG, "🔗 BLE connected - ready for control");
         // Don't automatically enable manual mode, let the app control effects
     } else {
-        ESP_LOGI(TAG, "🔌 BLE disconnected - starting smooth fade effect");
+        ESP_LOGI(TAG, "🔌 BLE disconnected - starting fade effect");
         light_effects_disable_manual_mode();
-        light_effects_set_effect(EFFECT_SMOOTH_FADE);
+        light_effects_set_effect(EFFECT_FADE);
     }
 }
 
@@ -549,4 +524,33 @@ light_effect_t light_effects_get_current_effect(void) {
 
 effect_config_t* light_effects_get_config(void) {
     return &config;
+}
+
+// Brightness management functions
+void light_effects_set_max_brightness_percent(uint8_t max_percent) {
+    if (max_percent > 100) {
+        max_percent = 100;
+    }
+    if (max_percent < 1) {
+        max_percent = 1;
+    }
+    
+    max_brightness_percent = max_percent;
+    ESP_LOGI(TAG, "Maximum brightness limit set to: %d%%", max_percent);
+}
+
+uint8_t light_effects_get_max_brightness_percent(void) {
+    return max_brightness_percent;
+}
+
+uint32_t light_effects_scale_brightness_to_max(uint32_t brightness_driver_value) {
+    if (brightness_driver_value > config.max_duty) {
+        brightness_driver_value = config.max_duty;
+    }
+    
+    // Scale the brightness value to respect the maximum brightness limit
+    uint32_t max_allowed = (config.max_duty * max_brightness_percent) / 100;
+    uint32_t scaled_brightness = (brightness_driver_value * max_allowed) / config.max_duty;
+    
+    return scaled_brightness;
 }

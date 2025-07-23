@@ -22,7 +22,7 @@ static const char *TAG = "BLE_SERVER";
 
 static uint8_t own_addr_type;
 
-// GATT characteristic access functions
+// GATT characteristic access functions - FORWARD DECLARATIONS
 static int rgbw_red_access(uint16_t conn_handle, uint16_t attr_handle,
                            struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int rgbw_green_access(uint16_t conn_handle, uint16_t attr_handle,
@@ -37,58 +37,58 @@ static int rgbw_brightness_access(uint16_t conn_handle, uint16_t attr_handle,
                                   struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int rgbw_speed_access(uint16_t conn_handle, uint16_t attr_handle,
                              struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int rgbw_chip_info_access(uint16_t conn_handle, uint16_t attr_handle,
+                                 struct ble_gatt_access_ctxt *ctxt, void *arg);
 
 // GATT service definition
 static const struct ble_gatt_svc_def gatt_svc_def[] = {
-    {
-        .type = BLE_GATT_SVC_TYPE_PRIMARY,
-        .uuid = BLE_UUID16_DECLARE(RGBW_SERVICE_UUID),
-        .characteristics = (struct ble_gatt_chr_def[]){
-            {
-                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_RED),
-                .access_cb = rgbw_red_access,
-                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
-            },
-            {
-                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_GREEN),
-                .access_cb = rgbw_green_access,
-                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
-            },
-            {
-                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_BLUE),
-                .access_cb = rgbw_blue_access,
-                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
-            },
-            {
-                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_WARM_WHITE),
-                .access_cb = rgbw_white_access,
-                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
-            },
-            {
-                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_EFFECT),
-                .access_cb = rgbw_effect_access,
-                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
-            },
-            {
-                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_BRIGHTNESS),
-                .access_cb = rgbw_brightness_access,
-                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
-            },
-            {
-                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_SPEED),
-                .access_cb = rgbw_speed_access,
-                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
-            },
-            {
-                .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_CHIP_INFO),
-                .access_cb = rgbw_chip_info_access,
-                .flags = BLE_GATT_CHR_F_READ, // Read-only
-            },
-            {
-                0, /* No more characteristics in this service */
-            },
-        }
-    },
+    {.type = BLE_GATT_SVC_TYPE_PRIMARY,
+     .uuid = BLE_UUID16_DECLARE(RGBW_SERVICE_UUID),
+     .characteristics = (struct ble_gatt_chr_def[]){
+         {
+             .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_RED),
+             .access_cb = rgbw_red_access,
+             .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+         },
+         {
+             .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_GREEN),
+             .access_cb = rgbw_green_access,
+             .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+         },
+         {
+             .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_BLUE),
+             .access_cb = rgbw_blue_access,
+             .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+         },
+         {
+             .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_WARM_WHITE),
+             .access_cb = rgbw_white_access,
+             .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+         },
+         {
+             .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_EFFECT),
+             .access_cb = rgbw_effect_access,
+             .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+         },
+         {
+             .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_BRIGHTNESS),
+             .access_cb = rgbw_brightness_access,
+             .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+         },
+         {
+             .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_SPEED),
+             .access_cb = rgbw_speed_access,
+             .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+         },
+         {
+             .uuid = BLE_UUID16_DECLARE(RGBW_CHAR_UUID_CHIP_INFO),
+             .access_cb = rgbw_chip_info_access,
+             .flags = BLE_GATT_CHR_F_READ,  // Read-only
+         },
+         {
+             0, /* No more characteristics in this service */
+         },
+     }},
     {
         0, /* No more services */
     },
@@ -116,7 +116,7 @@ static int rgbw_red_access(uint16_t conn_handle, uint16_t attr_handle,
     switch (ctxt->op) {
         case BLE_GATT_ACCESS_OP_READ_CHR:
             rc = os_mbuf_append(ctxt->om, &current_rgbw[0], sizeof(uint8_t));
-            ESP_LOGI(TAG, "Red read: %d", current_rgbw[0]);
+            ESP_LOGD(TAG, "Red read: %d", current_rgbw[0]);
             return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 
         case BLE_GATT_ACCESS_OP_WRITE_CHR:
@@ -128,10 +128,16 @@ static int rgbw_red_access(uint16_t conn_handle, uint16_t attr_handle,
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
 
-            // Convert 8-bit BLE value to driver resolution
+            // Convert 8-bit BLE value to driver resolution AND apply max brightness limit
             uint32_t driver_value = convert_to_driver_resolution(current_rgbw[0]);
-            pwm_set_duty(PWM_CHANNEL_RED, driver_value);
-            ESP_LOGI(TAG, "🔴 Red set to: %d (driver: %lu)", current_rgbw[0], (unsigned long)driver_value);
+            uint32_t limited_value = light_effects_scale_brightness_to_max(driver_value);
+            pwm_set_duty(PWM_CHANNEL_RED, limited_value);
+
+            uint8_t percentage = (current_rgbw[0] * 100) / 255;  // Convert 0-255 to 0-100%
+            ESP_LOGI(TAG, "🔴 Red: %d%% → PWM: %lu (max: %d%%)",
+                     percentage, (unsigned long)limited_value,
+                     light_effects_get_max_brightness_percent());
+
             return 0;
 
         default:
@@ -147,7 +153,7 @@ static int rgbw_green_access(uint16_t conn_handle, uint16_t attr_handle,
     switch (ctxt->op) {
         case BLE_GATT_ACCESS_OP_READ_CHR:
             rc = os_mbuf_append(ctxt->om, &current_rgbw[1], sizeof(uint8_t));
-            ESP_LOGI(TAG, "Green read: %d", current_rgbw[1]);
+            ESP_LOGD(TAG, "Green read: %d", current_rgbw[1]);
             return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 
         case BLE_GATT_ACCESS_OP_WRITE_CHR:
@@ -159,10 +165,16 @@ static int rgbw_green_access(uint16_t conn_handle, uint16_t attr_handle,
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
 
-            // Convert 8-bit BLE value to driver resolution
+            // Convert 8-bit BLE value to driver resolution AND apply max brightness limit
             uint32_t driver_value = convert_to_driver_resolution(current_rgbw[1]);
-            pwm_set_duty(PWM_CHANNEL_GREEN, driver_value);
-            ESP_LOGI(TAG, "🟢 Green set to: %d (driver: %lu)", current_rgbw[1], (unsigned long)driver_value);
+            uint32_t limited_value = light_effects_scale_brightness_to_max(driver_value);
+            pwm_set_duty(PWM_CHANNEL_GREEN, limited_value);
+
+            uint8_t percentage = (current_rgbw[1] * 100) / 255;  // Convert 0-255 to 0-100%
+            ESP_LOGI(TAG, "🟢 Green: %d%% → PWM: %lu (max: %d%%)",
+                     percentage, (unsigned long)limited_value,
+                     light_effects_get_max_brightness_percent());
+
             return 0;
 
         default:
@@ -178,7 +190,7 @@ static int rgbw_blue_access(uint16_t conn_handle, uint16_t attr_handle,
     switch (ctxt->op) {
         case BLE_GATT_ACCESS_OP_READ_CHR:
             rc = os_mbuf_append(ctxt->om, &current_rgbw[2], sizeof(uint8_t));
-            ESP_LOGI(TAG, "Blue read: %d", current_rgbw[2]);
+            ESP_LOGD(TAG, "Blue read: %d", current_rgbw[2]);
             return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 
         case BLE_GATT_ACCESS_OP_WRITE_CHR:
@@ -190,10 +202,16 @@ static int rgbw_blue_access(uint16_t conn_handle, uint16_t attr_handle,
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
 
-            // Convert 8-bit BLE value to driver resolution
+            // Convert 8-bit BLE value to driver resolution AND apply max brightness limit
             uint32_t driver_value = convert_to_driver_resolution(current_rgbw[2]);
-            pwm_set_duty(PWM_CHANNEL_BLUE, driver_value);
-            ESP_LOGI(TAG, "🔵 Blue set to: %d (driver: %lu)", current_rgbw[2], (unsigned long)driver_value);
+            uint32_t limited_value = light_effects_scale_brightness_to_max(driver_value);
+            pwm_set_duty(PWM_CHANNEL_BLUE, limited_value);
+
+            uint8_t percentage = (current_rgbw[2] * 100) / 255;  // Convert 0-255 to 0-100%
+            ESP_LOGI(TAG, "🔵 Blue: %d%% → PWM: %lu (max: %d%%)",
+                     percentage, (unsigned long)limited_value,
+                     light_effects_get_max_brightness_percent());
+
             return 0;
 
         default:
@@ -209,7 +227,7 @@ static int rgbw_white_access(uint16_t conn_handle, uint16_t attr_handle,
     switch (ctxt->op) {
         case BLE_GATT_ACCESS_OP_READ_CHR:
             rc = os_mbuf_append(ctxt->om, &current_rgbw[3], sizeof(uint8_t));
-            ESP_LOGI(TAG, "White read: %d", current_rgbw[3]);
+            ESP_LOGD(TAG, "White read: %d", current_rgbw[3]);
             return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 
         case BLE_GATT_ACCESS_OP_WRITE_CHR:
@@ -221,10 +239,16 @@ static int rgbw_white_access(uint16_t conn_handle, uint16_t attr_handle,
             light_effects_enable_manual_mode();
             light_effects_set_effect(EFFECT_STATIC);
 
-            // Convert 8-bit BLE value to driver resolution
+            // Convert 8-bit BLE value to driver resolution AND apply max brightness limit
             uint32_t driver_value = convert_to_driver_resolution(current_rgbw[3]);
-            pwm_set_duty(PWM_CHANNEL_WARM_WHITE, driver_value);
-            ESP_LOGI(TAG, "⚪ Warm White set to: %d (driver: %lu)", current_rgbw[3], (unsigned long)driver_value);
+            uint32_t limited_value = light_effects_scale_brightness_to_max(driver_value);
+            pwm_set_duty(PWM_CHANNEL_WARM_WHITE, limited_value);
+
+            uint8_t percentage = (current_rgbw[3] * 100) / 255;  // Convert 0-255 to 0-100%
+            ESP_LOGI(TAG, "⚪ White: %d%% → PWM: %lu (max: %d%%)",
+                     percentage, (unsigned long)limited_value,
+                     light_effects_get_max_brightness_percent());
+                     
             return 0;
 
         default:
@@ -283,9 +307,11 @@ static int rgbw_brightness_access(uint16_t conn_handle, uint16_t attr_handle,
     switch (ctxt->op) {
         case BLE_GATT_ACCESS_OP_READ_CHR:
             // Convert current brightness from driver resolution to 8-bit for BLE
+            // Note: This returns the "virtual" brightness (0-100%) not the actual limited value
             brightness_value = convert_from_driver_resolution(light_effects_get_config()->brightness);
             rc = os_mbuf_append(ctxt->om, &brightness_value, sizeof(uint8_t));
-            ESP_LOGI(TAG, "Brightness read: %d", brightness_value);
+            ESP_LOGI(TAG, "Brightness read: %d%% (max limit: %d%%)",
+                     brightness_value, light_effects_get_max_brightness_percent());
             return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 
         case BLE_GATT_ACCESS_OP_WRITE_CHR:
@@ -294,10 +320,14 @@ static int rgbw_brightness_access(uint16_t conn_handle, uint16_t attr_handle,
                 return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
             }
 
-            // Convert 8-bit BLE value to driver resolution
+            // Convert 8-bit BLE value to driver resolution (this stores the "virtual" brightness)
             uint32_t driver_brightness = convert_to_driver_resolution(brightness_value);
             light_effects_set_brightness(driver_brightness);
-            ESP_LOGI(TAG, "🔆 Brightness set to: %d (driver: %lu)", brightness_value, (unsigned long)driver_brightness);
+
+            ESP_LOGI(TAG, "🔆 Brightness set to: %d%% (limited to %d%% = actual %d%%)",
+                     brightness_value,
+                     light_effects_get_max_brightness_percent(),
+                     (brightness_value * light_effects_get_max_brightness_percent()) / 100);
             return 0;
 
         default:
@@ -327,6 +357,34 @@ static int rgbw_speed_access(uint16_t conn_handle, uint16_t attr_handle,
             light_effects_set_speed(speed_value);
             ESP_LOGI(TAG, "⚡ Speed set to: %d", speed_value);
             return 0;
+
+        default:
+            assert(0);
+            return BLE_ATT_ERR_UNLIKELY;
+    }
+}
+
+static int rgbw_chip_info_access(uint16_t conn_handle, uint16_t attr_handle,
+                                 struct ble_gatt_access_ctxt *ctxt, void *arg) {
+    int rc;
+    uint8_t chip_info[16];  // Buffer for chip info string
+
+    switch (ctxt->op) {
+        case BLE_GATT_ACCESS_OP_READ_CHR:
+#ifdef CONFIG_BOARD_ESP32C3_OLED
+            strcpy((char *)chip_info, "AL8860");
+#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
+            strcpy((char *)chip_info, "LM3414");
+#else
+            strcpy((char *)chip_info, "UNKNOWN");
+#endif
+            rc = os_mbuf_append(ctxt->om, chip_info, strlen((char *)chip_info));
+            ESP_LOGI(TAG, "Chip info read: %s", chip_info);
+            return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+
+        case BLE_GATT_ACCESS_OP_WRITE_CHR:
+            // Read-only characteristic
+            return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
 
         default:
             assert(0);
@@ -565,32 +623,4 @@ void ble_server_init(void) {
     nimble_port_freertos_init(ble_host_task);
 
     ESP_LOGI(TAG, "BLE server initialized");
-}
-
-static int rgbw_chip_info_access(uint16_t conn_handle, uint16_t attr_handle,
-                                 struct ble_gatt_access_ctxt *ctxt, void *arg) {
-    int rc;
-    uint8_t chip_info[16];  // Buffer for chip info string
-
-    switch (ctxt->op) {
-        case BLE_GATT_ACCESS_OP_READ_CHR:
-#ifdef CONFIG_BOARD_ESP32C3_OLED
-            strcpy((char *)chip_info, "AL8860");
-#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
-            strcpy((char *)chip_info, "LM3414");
-#else
-            strcpy((char *)chip_info, "UNKNOWN");
-#endif
-            rc = os_mbuf_append(ctxt->om, chip_info, strlen((char *)chip_info));
-            ESP_LOGI(TAG, "Chip info read: %s", chip_info);
-            return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
-
-        case BLE_GATT_ACCESS_OP_WRITE_CHR:
-            // Read-only characteristic
-            return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
-
-        default:
-            assert(0);
-            return BLE_ATT_ERR_UNLIKELY;
-    }
 }

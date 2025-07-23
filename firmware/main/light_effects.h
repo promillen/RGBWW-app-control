@@ -5,27 +5,15 @@
 #include <stdbool.h>
 #include "sdkconfig.h"
 
-// Effect types optimized for each driver
+// Effect types - simplified and unified
 typedef enum {
     EFFECT_OFF = 0,
     EFFECT_STATIC,           // Static color (manual control)
-    EFFECT_SMOOTH_FADE,      // Default - smooth RGB color cycling
-    EFFECT_RGB_CYCLE,        // Hard RGB cycling without fading
-    EFFECT_BREATHING,        // Breathing effect with any color
-    EFFECT_TWINKLE_PULSE,    // Subtle RGB flicker on low brightness
-    EFFECT_LIGHTNING_FLASH,  // Cool white lightning flashes
-    EFFECT_CANDLE_FLICKER,   // Warm candle flame effect
-    
-    // Board-specific effects based on Kconfig
-#ifdef CONFIG_BOARD_ESP32C3_OLED
-    // AL8860 specific effects (hysteretic control optimized)
-    EFFECT_PULSE_WAVE,       // Optimized for AL8860's natural hysteretic behavior
-    EFFECT_SOFT_TRANSITION,  // Leverages AL8860's soft-start capability
-#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
-    // LM3414 specific effects (high precision optimized)
-    EFFECT_PRECISION_FADE,   // High-resolution fading for LM3414
-    EFFECT_FAST_STROBE,      // High-frequency effects for LM3414
-#endif
+    EFFECT_FADE,             // Smooth color fading (auto-detects chip optimization)
+    EFFECT_COLOUR_CYCLE,     // Random color cycling
+    EFFECT_LIGHTNING,        // Lightning storm effect
+    EFFECT_CANDLE,           // Candle flame with random base color
+    EFFECT_STROBE,           // Strobe light effect
     EFFECT_MAX
 } light_effect_t;
 
@@ -52,5 +40,10 @@ void light_effects_disable_manual_mode(void);
 light_effect_t light_effects_get_current_effect(void);
 effect_config_t* light_effects_get_config(void);
 void light_effects_set_ble_connected(bool connected);
+
+// Brightness management functions
+void light_effects_set_max_brightness_percent(uint8_t max_percent);
+uint8_t light_effects_get_max_brightness_percent(void);
+uint32_t light_effects_scale_brightness_to_max(uint32_t brightness_driver_value);
 
 #endif
