@@ -5,6 +5,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Alive Light Control</title>
+    
+    <!-- Favicon links -->
+    <link rel="icon" type="image/png" sizes="32x32" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icon-192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-192.png">
+    <link rel="shortcut icon" href="icon-192.png">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Theme colors for mobile browsers -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="msapplication-TileColor" content="#667eea">
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@300;400;700&display=swap');
 
@@ -503,6 +517,23 @@
             fill: currentColor;
         }
 
+        .attribution {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            background: var(--border-color);
+            border: 1px solid var(--accent-cyan);
+            border-radius: 4px;
+            font-size: 10px;
+            color: var(--accent-cyan);
+            text-align: center;
+            font-family: 'Orbitron', monospace;
+        }
+
+        .attribution strong {
+            color: var(--primary-green);
+            font-weight: 700;
+        }
+
         @media (max-width: 480px) {
             .terminal-container {
                 margin: 10px;
@@ -558,6 +589,11 @@
 ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝  ╚══════╝</div>
 
         <div class="terminal-body">
+            <div class="attribution">
+                <strong>DESIGNED & DEVELOPED BY</strong><br>
+                CHRISTOFFER KOLBE BOYE-HANSEN
+            </div>
+
             <div id="deviceInfo" class="device-info" style="display: none;">
                 TARGET DEVICE: <span id="deviceName">-</span>
             </div>
@@ -1054,6 +1090,7 @@
                     this.debug(`LM3414 detected from name - no OLED indicator found`);
                 }
             }
+            
             showScanAnimation(show) {
                 const animation = document.getElementById('scanAnimation');
                 if (animation) {
@@ -1201,6 +1238,18 @@
 
         // Initialize the controller
         window.aliveLightController = new AliveLightController();
+
+        // Register service worker for PWA functionality
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    }, function(err) {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
     </script>
 </body>
 
