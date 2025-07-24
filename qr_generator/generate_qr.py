@@ -101,6 +101,13 @@ def generate_qr_codes(base_url, num_devices=10, device_prefix="RGBW_LED", start_
         instr_x = (img_width - instr_width) // 2
         draw.text((instr_x, 355), instruction_text, fill="gray", font=small_font)
         
+        # Android only notice
+        android_text = "(Android only)"
+        android_bbox = draw.textbbox((0, 0), android_text, font=small_font)
+        android_width = android_bbox[2] - android_bbox[0]
+        android_x = (img_width - android_width) // 2
+        draw.text((android_x, 370), android_text, fill="red", font=small_font)
+        
         # Website URL (for reference)
         url_parts = base_url.replace("https://", "").replace("http://", "")
         url_text = url_parts
@@ -110,7 +117,7 @@ def generate_qr_codes(base_url, num_devices=10, device_prefix="RGBW_LED", start_
         url_bbox = draw.textbbox((0, 0), url_text, font=small_font)
         url_width = url_bbox[2] - url_bbox[0]
         url_x = (img_width - url_width) // 2
-        draw.text((url_x, 380), url_text, fill="lightgray", font=small_font)
+        draw.text((url_x, 395), url_text, fill="lightgray", font=small_font)
         
         # Save image
         filename = f"{output_dir}/{device_id}_qr.png"
@@ -158,7 +165,7 @@ def generate_batch_sheet(output_dir, cols=3):
 
 def main():
     parser = argparse.ArgumentParser(description='Generate QR codes for LED controllers')
-    parser.add_argument('--url', default='https://yourusername.github.io/led-control', 
+    parser.add_argument('--url', default='https://promillen.github.io/RGBWW-app-control', 
                        help='Base URL for the web app')
     parser.add_argument('--count', type=int, default=10, 
                        help='Number of QR codes to generate')

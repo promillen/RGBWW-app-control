@@ -32,9 +32,9 @@ typedef enum {
     #undef CONFIG_GPIO_BLUE
     #undef CONFIG_GPIO_WARM_WHITE
     #define CONFIG_GPIO_RED 10
-    #define CONFIG_GPIO_GREEN 9
+    #define CONFIG_GPIO_GREEN 7
     #define CONFIG_GPIO_BLUE 8
-    #define CONFIG_GPIO_WARM_WHITE 7
+    #define CONFIG_GPIO_WARM_WHITE 9
     
     #undef CONFIG_LED_MAX_CURRENT_MA
     #define CONFIG_LED_MAX_CURRENT_MA 1500

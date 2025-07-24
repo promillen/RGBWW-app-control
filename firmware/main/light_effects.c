@@ -32,12 +32,11 @@ static uint32_t effect_counter = 0;
 // Fade effect variables
 static float hue = 0.0f;
 
-// Color cycle variables
+// Color cycle variables - updated for hold-then-change behavior
 static uint32_t cycle_timer = 0;
-static uint8_t current_color[3] = {255, 0, 0}; // Current RGB color
-static uint8_t target_color[3] = {0, 255, 0};  // Target RGB color
-static uint32_t transition_duration = 0;
-static uint32_t transition_start = 0;
+static uint8_t current_color[3] = {255, 0, 0}; // Current RGB color being displayed
+static uint32_t hold_duration = 0;             // How long to hold the current color
+static bool color_changed = false;             // Flag to track when we need to pick a new color
 
 // Lightning variables
 static uint32_t lightning_timer = 0;
@@ -65,6 +64,20 @@ static uint32_t strobe_timer = 0;
     #define FADE_SPEED_MULT 0.002f
 #else
     #error "No board configuration selected. Please run 'idf.py menuconfig'"
+#endif
+
+// Calculate fade speed for controllable fade (30-second base) and default fade (2-minute base)
+// 30 seconds = 30000ms, 2 minutes = 120000ms
+#ifdef CONFIG_BOARD_ESP32C3_OLED
+    // Controllable fade: 30000ms / 50ms = 600 steps
+    #define FADE_30_SECOND_INCREMENT (1.0f / (30000.0f / EFFECT_UPDATE_INTERVAL_MS))
+    // Default fade: 120000ms / 50ms = 2400 steps
+    #define FADE_2_MINUTE_INCREMENT (1.0f / (240000.0f / EFFECT_UPDATE_INTERVAL_MS))
+#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
+    // Controllable fade: 30000ms / 20ms = 1500 steps
+    #define FADE_30_SECOND_INCREMENT (1.0f / (30000.0f / EFFECT_UPDATE_INTERVAL_MS))
+    // Default fade: 120000ms / 20ms = 6000 steps
+    #define FADE_2_MINUTE_INCREMENT (1.0f / (340000.0f / EFFECT_UPDATE_INTERVAL_MS))
 #endif
 
 // Helper function to convert HSV to RGB
@@ -114,11 +127,6 @@ static void generate_random_color(uint8_t *r, uint8_t *g, uint8_t *b) {
     hsv_to_rgb(random_hue, 1.0f, 1.0f, r, g, b);
 }
 
-// Linear interpolation between two colors
-static uint8_t lerp_color(uint8_t from, uint8_t to, float progress) {
-    return from + (uint8_t)((to - from) * progress);
-}
-
 // 1. OFF - Turn everything off
 static void effect_off(void) {
     pwm_set_rgbw(0, 0, 0, 0);
@@ -131,23 +139,34 @@ static void effect_static(void) {
     pwm_set_rgbw(r, g, b, w);
 }
 
-// 3. FADE - Unified fade effect with chip-specific optimization
+// 3. FADE - 30-second controllable fade or 2-minute default fade
 static void effect_fade(void) {
     uint8_t r, g, b;
     uint32_t scaled_r, scaled_g, scaled_b, scaled_w = 0;
     
-    // Calculate speed based on driver type and speed setting
-    float speed_factor = (config.speed / 255.0f) * FADE_SPEED_MULT;
+    float hue_increment;
     
-#ifdef CONFIG_BOARD_ESP32C3_OLED
-    // AL8860: Slower, more stable fade
-    hue += speed_factor;
-#elif defined(CONFIG_BOARD_ESP32C3_NO_OLED)
-    // LM3414: Faster, more precise fade using higher resolution
-    hue += speed_factor * 2.0f; // Can handle faster transitions
-#endif
+    if (ble_connected) {
+        // When BLE is connected, use controllable 30-second base with speed adjustment
+        // Speed 0 = slowest (30 seconds base), Speed 255 = fastest (3 seconds)
+        // Formula: actual_time = 30 - (speed/255 * 27) seconds
+        float speed_multiplier = 1.0f + (config.speed / 255.0f) * 9.0f; // 1x to 10x speed
+        hue_increment = FADE_30_SECOND_INCREMENT * speed_multiplier;
+    } else {
+        // When BLE is NOT connected, use slow 2-minute fade (ignores speed setting)
+        hue_increment = FADE_2_MINUTE_INCREMENT;
+    }
     
-    if (hue >= 1.0f) hue = 0.0f;
+    hue += hue_increment;
+    
+    if (hue >= 1.0f) {
+        hue = 0.0f;
+        if (ble_connected) {
+            ESP_LOGI(TAG, "🌈 Fade effect completed one cycle (30-second base, speed=%d)", config.speed);
+        } else {
+            ESP_LOGI(TAG, "🌈 Default fade completed one cycle (2-minute cycle)");
+        }
+    }
     
     hsv_to_rgb(hue, 1.0f, 1.0f, &r, &g, &b);
     
@@ -161,47 +180,43 @@ static void effect_fade(void) {
     pwm_set_rgbw(scaled_r, scaled_g, scaled_b, scaled_w);
 }
 
-// 4. COLOUR CYCLE - Switch between random colors
+// 4. COLOUR CYCLE - Hold one color, then instantly change to new random color
 static void effect_colour_cycle(void) {
     uint32_t scaled_r, scaled_g, scaled_b, scaled_w = 0;
     
-    // Calculate transition duration based on speed (slower speed = longer transitions)
-    if (transition_duration == 0) {
-        transition_duration = (255 - config.speed) * 5 + 50; // 50-1325 ticks
-        transition_start = effect_counter;
+    // Initialize hold duration on first run or when we need a new color
+    if (hold_duration == 0 || color_changed) {
+        // Calculate hold duration based on speed (slower speed = longer hold)
+        // Speed 0 = 10 seconds hold, Speed 255 = 1 second hold
+        uint32_t base_hold_ms = 10000; // 10 seconds
+        uint32_t min_hold_ms = 1000;   // 1 second
+        uint32_t hold_ms = base_hold_ms - ((config.speed * (base_hold_ms - min_hold_ms)) / 255);
+        hold_duration = hold_ms / EFFECT_UPDATE_INTERVAL_MS; // Convert to ticks
+        
+        // Generate new random color if this is a color change
+        if (color_changed || cycle_timer == 0) {
+            generate_random_color(&current_color[0], &current_color[1], &current_color[2]);
+            ESP_LOGI(TAG, "🎨 New color: R=%d, G=%d, B=%d (hold for %.1fs)", 
+                     current_color[0], current_color[1], current_color[2], 
+                     (float)hold_ms / 1000.0f);
+        }
+        
+        cycle_timer = 0;
+        color_changed = false;
     }
     
-    // Check if we need to start a new transition
-    if (effect_counter - transition_start >= transition_duration) {
-        // Move target to current and generate new target
-        current_color[0] = target_color[0];
-        current_color[1] = target_color[1];
-        current_color[2] = target_color[2];
-        
-        // Generate new random target color
-        generate_random_color(&target_color[0], &target_color[1], &target_color[2]);
-        
-        // Reset transition
-        transition_start = effect_counter;
-        transition_duration = (255 - config.speed) * 5 + 50;
+    cycle_timer++;
+    
+    // Check if it's time to change color
+    if (cycle_timer >= hold_duration) {
+        color_changed = true;
+        hold_duration = 0; // Reset to trigger new color generation
     }
     
-    // Calculate progress (0.0 to 1.0)
-    float progress = (float)(effect_counter - transition_start) / transition_duration;
-    if (progress > 1.0f) progress = 1.0f;
-    
-    // Smooth easing function for better visual appeal
-    progress = progress * progress * (3.0f - 2.0f * progress);
-    
-    // Interpolate between current and target colors
-    uint8_t r = lerp_color(current_color[0], target_color[0], progress);
-    uint8_t g = lerp_color(current_color[1], target_color[1], progress);
-    uint8_t b = lerp_color(current_color[2], target_color[2], progress);
-    
-    // Scale to driver resolution
-    scaled_r = scale_to_driver_resolution(r);
-    scaled_g = scale_to_driver_resolution(g);
-    scaled_b = scale_to_driver_resolution(b);
+    // Display current color (no transition/interpolation)
+    scaled_r = scale_to_driver_resolution(current_color[0]);
+    scaled_g = scale_to_driver_resolution(current_color[1]);
+    scaled_b = scale_to_driver_resolution(current_color[2]);
     
     apply_brightness(&scaled_r, &scaled_g, &scaled_b, &scaled_w, config.brightness);
     
@@ -349,6 +364,8 @@ static void effect_strobe(void) {
 // Main effects task
 static void effects_task(void *pvParameters) {
     ESP_LOGI(TAG, "Effects task started for %s", LED_DRIVER_TYPE);
+    ESP_LOGI(TAG, "Fade: 30s controllable (when connected) / 2min default (disconnected)");
+    ESP_LOGI(TAG, "Color cycle: hold-then-change behavior");
     
     while (1) {
         if (!config.enabled) {
@@ -381,7 +398,7 @@ static void effects_task(void *pvParameters) {
             case EFFECT_COLOUR_CYCLE:
                 effect_colour_cycle();
                 break;
-
+                
             case EFFECT_LIGHTNING:
                 effect_lightning();
                 break;
@@ -466,7 +483,8 @@ void light_effects_set_effect(light_effect_t effect) {
             effect_counter = 0;
             hue = 0.0f;
             cycle_timer = 0;
-            transition_duration = 0;
+            hold_duration = 0;
+            color_changed = true; // Force new color selection for color cycle
             lightning_timer = 0;
             lightning_active = false;
             lightning_phase = 0;
