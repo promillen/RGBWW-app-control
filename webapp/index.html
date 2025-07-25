@@ -6,13 +6,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Alive Light Control</title>
 
-    <!-- Google tag (gtag.js) -->
+    <!-- Google tag (gtag.js) - FIXED IMPLEMENTATION -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-QTFMDRGX8E"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-        gtag('config', 'G-QTFMDRGX8E');
+        
+        // Enhanced configuration for better tracking
+        gtag('config', 'G-QTFMDRGX8E', {
+            // Track page views with full URL including query parameters
+            page_title: document.title,
+            page_location: window.location.href,
+            // Enable enhanced measurement
+            enhanced_measurement: true,
+            // Custom parameters
+            custom_map: {
+                'custom_parameter_1': 'device_name',
+                'custom_parameter_2': 'auto_connect'
+            }
+        });
+
+        // Manual page view tracking for URLs with parameters
+        function trackPageView() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const deviceName = urlParams.get('device');
+            const autoConnect = urlParams.get('autoconnect');
+            
+            gtag('event', 'page_view', {
+                page_title: document.title,
+                page_location: window.location.href,
+                page_path: window.location.pathname + window.location.search,
+                device_name: deviceName,
+                auto_connect: autoConnect === 'true',
+                has_device_param: !!deviceName,
+                has_autoconnect_param: !!autoConnect
+            });
+            
+            // Also send a custom event for QR code scans
+            if (deviceName) {
+                gtag('event', 'qr_code_scan', {
+                    device_name: deviceName,
+                    auto_connect: autoConnect === 'true',
+                    page_location: window.location.href
+                });
+            }
+        }
+
+        // Track page view after DOM loads
+        document.addEventListener('DOMContentLoaded', function() {
+            trackPageView();
+        });
     </script>
     
     <!-- Favicon links -->
@@ -718,6 +762,7 @@
                 this.chipType = null; // Will be detected: 'LM3414' or 'AL8860'
                 this.maxDuty = 255; // Will be updated based on chip detection
                 this.sessionId = this.generateSessionId();
+                this.sessionStartTime = Date.now();
 
                 this.initializeUI();
                 this.parseURLParams();
@@ -730,20 +775,34 @@
 
             logEvent(eventName, parameters = {}) {
                 try {
+                    // Enhanced logging with more context
+                    const eventData = {
+                        session_id: this.sessionId,
+                        session_duration_ms: Date.now() - this.sessionStartTime,
+                        device_name: this.device ? this.device.name : this.targetDeviceName,
+                        chip_type: this.chipType,
+                        is_connected: this.isConnected,
+                        page_url: window.location.href,
+                        user_agent: navigator.userAgent,
+                        timestamp: new Date().toISOString(),
+                        ...parameters
+                    };
+
                     // Check if Google Analytics is loaded
                     if (typeof gtag === 'function') {
-                        gtag('event', eventName, {
-                            session_id: this.sessionId,
-                            device_name: this.device ? this.device.name : null,
-                            chip_type: this.chipType,
-                            ...parameters
-                        });
+                        gtag('event', eventName, eventData);
+                        console.log(`[GA] Event sent: ${eventName}`, eventData);
                     } else {
-                        // Fallback for development
-                        console.log('[ANALYTICS]', eventName, parameters);
+                        console.log('[ANALYTICS] GA not loaded, event queued:', eventName, eventData);
+                        
+                        // Queue events if GA hasn't loaded yet
+                        window.dataLayer = window.dataLayer || [];
+                        window.dataLayer.push({
+                            event: eventName,
+                            ...eventData
+                        });
                     }
                 } catch (error) {
-                    // Silently fail - don't interrupt user experience
                     console.warn('Analytics logging failed:', error);
                 }
             }
@@ -754,15 +813,24 @@
 
             error(message, error = null) {
                 console.error(`[ALIVE LIGHT ERROR] ${message}`, error || '');
+                // Log errors to analytics too
+                this.logEvent('app_error', {
+                    error_message: message,
+                    error_details: error ? error.toString() : null
+                });
             }
 
             checkBluetoothSupport() {
                 if (!('bluetooth' in navigator)) {
                     this.updateStatus('BLUETOOTH NOT SUPPORTED', 'disconnected');
                     document.getElementById('connectBtn').disabled = true;
+                    this.logEvent('bluetooth_not_supported', {
+                        user_agent: navigator.userAgent
+                    });
                     return false;
                 }
                 this.debug('Bluetooth Web API available');
+                this.logEvent('bluetooth_supported');
                 return true;
             }
 
@@ -783,9 +851,15 @@
                         }, 1000);
                     }
                 }
+                
+                // Enhanced app_loaded event with URL params
                 this.logEvent('app_loaded', {
                     has_target_device: !!this.targetDeviceName,
-                    auto_connect: autoConnect === 'true'
+                    target_device_name: this.targetDeviceName,
+                    auto_connect: autoConnect === 'true',
+                    url_params: Object.fromEntries(params),
+                    referrer: document.referrer,
+                    is_qr_scan: !!(deviceName && autoConnect)
                 });
             }
 
@@ -817,6 +891,14 @@
                 this.debug(`Final chip detection: ${this.chipType} (Max duty: ${this.maxDuty}) for device: "${deviceName}"`);
                 this.updateChipInfo();
                 this.showChipSpecificEffects();
+                
+                // Log chip detection
+                this.logEvent('chip_detected', {
+                    chip_type: this.chipType,
+                    max_duty: this.maxDuty,
+                    device_name: deviceName,
+                    detection_method: 'device_name_pattern'
+                });
             }
 
             updateChipInfo() {
@@ -908,6 +990,9 @@
 
                 this.updateColorPreview();
                 this.updateEffectButtons();
+                
+                // Log UI initialization
+                this.logEvent('ui_initialized');
             }
 
             throttledUpdate() {
@@ -963,6 +1048,10 @@
                     this.updateConnectButton(true);
 
                     this.debug(`Attempting connection to: ${this.targetDeviceName}`);
+                    this.logEvent('connection_attempt', {
+                        connection_type: 'specific_device',
+                        target_device: this.targetDeviceName
+                    });
 
                     this.device = await navigator.bluetooth.requestDevice({
                         filters: [{ name: this.targetDeviceName }],
@@ -973,6 +1062,12 @@
 
                 } catch (error) {
                     this.error('Auto-connect failed', error);
+                    this.logEvent('connection_failed', {
+                        connection_type: 'specific_device',
+                        target_device: this.targetDeviceName,
+                        error_name: error.name,
+                        error_message: error.message
+                    });
 
                     if (error.name === 'NotFoundError') {
                         this.updateStatus(`${this.targetDeviceName} NOT FOUND`, 'disconnected');
@@ -994,6 +1089,9 @@
                     this.updateConnectButton(true);
 
                     this.debug('Starting device scan with choice');
+                    this.logEvent('connection_attempt', {
+                        connection_type: 'scan_choice'
+                    });
 
                     const filters = [];
                     if (this.targetDeviceName) {
@@ -1010,6 +1108,11 @@
 
                 } catch (error) {
                     this.error('Connection choice failed', error);
+                    this.logEvent('connection_failed', {
+                        connection_type: 'scan_choice',
+                        error_name: error.name,
+                        error_message: error.message
+                    });
 
                     if (error.name === 'NotFoundError') {
                         this.updateStatus('NO DEVICES FOUND', 'disconnected');
@@ -1031,6 +1134,11 @@
 
                 this.device.addEventListener('gattserverdisconnected', () => {
                     this.debug('Device disconnected');
+                    this.logEvent('bluetooth_disconnected', {
+                        device_name: this.device ? this.device.name : null,
+                        session_duration_ms: Date.now() - this.sessionStartTime,
+                        disconnect_type: 'unexpected'
+                    });
                     this.isConnected = false;
                     this.updateStatus('CONNECTION LOST', 'disconnected');
                     this.updateConnectButton(false);
@@ -1072,8 +1180,10 @@
                 this.logEvent('bluetooth_connected', {
                     device_name: this.device.name,
                     was_auto_connect: !!this.targetDeviceName,
-                    retry_count: this.retryCount
-                })
+                    retry_count: this.retryCount,
+                    chip_type: this.chipType,
+                    connection_duration_ms: Date.now() - this.sessionStartTime
+                });
                 this.updateConnectButton(false);
                 document.getElementById('controls').classList.add('active');
 
@@ -1105,6 +1215,13 @@
                     }
 
                     this.debug(`Chip detected from characteristic: ${this.chipType} (Max duty: ${this.maxDuty})`);
+                    
+                    this.logEvent('chip_detected', {
+                        chip_type: this.chipType,
+                        max_duty: this.maxDuty,
+                        detection_method: 'characteristic',
+                        raw_chip_name: chipName
+                    });
 
                 } catch (error) {
                     this.error('Failed to read chip info characteristic', error);
@@ -1132,6 +1249,13 @@
                     this.maxDuty = 4095;
                     this.debug(`LM3414 detected from name - no OLED indicator found`);
                 }
+                
+                this.logEvent('chip_detected', {
+                    chip_type: this.chipType,
+                    max_duty: this.maxDuty,
+                    detection_method: 'device_name_fallback',
+                    device_name: deviceName
+                });
             }
             
             showScanAnimation(show) {
@@ -1160,7 +1284,8 @@
                 if (this.device && this.device.gatt.connected) {
                     this.logEvent('bluetooth_disconnected', {
                         device_name: this.device ? this.device.name : null,
-                        session_duration_ms: Date.now() - parseInt(this.sessionId, 36)
+                        session_duration_ms: Date.now() - this.sessionStartTime,
+                        disconnect_type: 'manual'
                     });
                     this.device.gatt.disconnect();
                 }
@@ -1188,7 +1313,9 @@
                     await this.characteristics.effect.writeValue(new Uint8Array([effectId]));
                     this.logEvent('effect_changed', {
                         effect_id: effectId,
-                        previous_effect: this.currentEffect
+                        previous_effect: this.currentEffect,
+                        device_name: this.device.name,
+                        chip_type: this.chipType
                     });
                     this.currentEffect = effectId;
                     this.updateEffectButtons();
@@ -1206,6 +1333,12 @@
 
                     this.debug(`Setting brightness to: ${deviceValue} (${brightnessPercent}%)`);
                     await this.characteristics.brightness.writeValue(new Uint8Array([deviceValue]));
+                    
+                    this.logEvent('brightness_changed', {
+                        brightness_percent: brightnessPercent,
+                        brightness_device_value: deviceValue,
+                        device_name: this.device.name
+                    });
                 } catch (error) {
                     this.error('Failed to set brightness', error);
                 }
@@ -1220,6 +1353,12 @@
 
                     this.debug(`Setting speed to: ${deviceValue} (${speedPercent}%)`);
                     await this.characteristics.speed.writeValue(new Uint8Array([deviceValue]));
+                    
+                    this.logEvent('speed_changed', {
+                        speed_percent: speedPercent,
+                        speed_device_value: deviceValue,
+                        device_name: this.device.name
+                    });
                 } catch (error) {
                     this.error('Failed to set speed', error);
                 }
@@ -1247,6 +1386,14 @@
                     await this.characteristics.warmWhite.writeValue(new Uint8Array([deviceW]));
 
                     this.debug(`Colors sent: R=${deviceR}, G=${deviceG}, B=${deviceB}, W=${deviceW} (${rPercent}%, ${gPercent}%, ${bPercent}%, ${wPercent}%)`);
+                    
+                    this.logEvent('color_changed', {
+                        red_percent: rPercent,
+                        green_percent: gPercent,
+                        blue_percent: bPercent,
+                        white_percent: wPercent,
+                        device_name: this.device.name
+                    });
                 } catch (error) {
                     this.error('Failed to update colors', error);
                 }
