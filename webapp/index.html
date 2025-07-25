@@ -708,10 +708,35 @@
                 this.currentEffect = 2; // Default to smooth fade
                 this.chipType = null; // Will be detected: 'LM3414' or 'AL8860'
                 this.maxDuty = 255; // Will be updated based on chip detection
+                this.sessionId = this.generateSessionId();
 
                 this.initializeUI();
                 this.parseURLParams();
                 this.checkBluetoothSupport();
+            }
+
+            generateSessionId() {
+                return Date.now().toString(36) + Math.random().toString(36).substr(2);
+            }
+
+            logEvent(eventName, parameters = {}) {
+                try {
+                    // Check if Google Analytics is loaded
+                    if (typeof gtag === 'function') {
+                        gtag('event', eventName, {
+                            session_id: this.sessionId,
+                            device_name: this.device ? this.device.name : null,
+                            chip_type: this.chipType,
+                            ...parameters
+                        });
+                    } else {
+                        // Fallback for development
+                        console.log('[ANALYTICS]', eventName, parameters);
+                    }
+                } catch (error) {
+                    // Silently fail - don't interrupt user experience
+                    console.warn('Analytics logging failed:', error);
+                }
             }
 
             debug(message, data = null) {
@@ -749,6 +774,10 @@
                         }, 1000);
                     }
                 }
+                this.logEvent('app_loaded', {
+                    has_target_device: !!this.targetDeviceName,
+                    auto_connect: autoConnect === 'true'
+                });
             }
 
             detectChipType() {
@@ -1031,6 +1060,11 @@
                 this.isConnected = true;
                 this.retryCount = 0;
                 this.updateStatus(`CONNECTED TO ${this.device.name}`, 'connected');
+                this.logEvent('bluetooth_connected', {
+                    device_name: this.device.name,
+                    was_auto_connect: !!this.targetDeviceName,
+                    retry_count: this.retryCount
+                })
                 this.updateConnectButton(false);
                 document.getElementById('controls').classList.add('active');
 
@@ -1115,6 +1149,10 @@
 
             async disconnect() {
                 if (this.device && this.device.gatt.connected) {
+                    this.logEvent('bluetooth_disconnected', {
+                        device_name: this.device ? this.device.name : null,
+                        session_duration_ms: Date.now() - parseInt(this.sessionId, 36)
+                    });
                     this.device.gatt.disconnect();
                 }
 
@@ -1139,6 +1177,10 @@
                 try {
                     this.debug(`Setting effect to: ${effectId}`);
                     await this.characteristics.effect.writeValue(new Uint8Array([effectId]));
+                    this.logEvent('effect_changed', {
+                        effect_id: effectId,
+                        previous_effect: this.currentEffect
+                    });
                     this.currentEffect = effectId;
                     this.updateEffectButtons();
                 } catch (error) {
